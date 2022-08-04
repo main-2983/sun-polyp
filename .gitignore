@@ -115,6 +115,8 @@ data
 work_dirs/
 mmseg/.mim
 logs/
+configs/
+demo/
 
 # Pytorch
 *.pth
