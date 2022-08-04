@@ -108,13 +108,13 @@ venv.bak/
 data
 .vscode
 .idea
-
 # custom
 *.pkl
 *.pkl.json
 *.log.json
 work_dirs/
 mmseg/.mim
+logs/
 
 # Pytorch
 *.pth
