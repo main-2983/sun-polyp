@@ -13,10 +13,8 @@ import albumentations as A
 from albumentations.pytorch import ToTensorV2
 import segmentation_models_pytorch as smp
 
-from code.model import model
-from code.metrics import AverageMeter, get_scores
-from code.dataset import ActiveDataset
-from code.utils import seed_everything, LOGGER, select_device
+from code import model, AverageMeter, get_scores, ActiveDataset, seed_everything,\
+    LOGGER, select_device
 
 # config
 # ===============================================================================
@@ -168,7 +166,6 @@ if __name__ == '__main__':
                                                               eta_min=init_lr / 1000)
 
     for ep in range(n_eps):
-
         dice_meter.reset()
         iou_meter.reset()
         train_loss_meter.reset()
