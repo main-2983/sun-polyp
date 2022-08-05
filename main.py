@@ -13,7 +13,7 @@ import albumentations as A
 from albumentations.pytorch import ToTensorV2
 import segmentation_models_pytorch as smp
 
-from code import model, AverageMeter, get_scores, ActiveDataset, seed_everything,\
+from mcode import model, AverageMeter, get_scores, ActiveDataset, seed_everything,\
     LOGGER, select_device
 
 # config
