@@ -18,6 +18,7 @@ from mcode import model, AverageMeter, get_scores, ActiveDataset, seed_everythin
 
 # config
 # ===============================================================================
+use_wandb = False
 wandb_key = "d0ee13baa7af4379eff80e68b11cf976bbb8d673"
 wandb_project = "Seg-Uper"
 wandb_entity = "ssl-online"
@@ -30,28 +31,34 @@ device = select_device("cuda:0" if torch.cuda.is_available() else 'cpu')
 train_images = glob.glob('TrainDataset/image/*')
 train_masks = glob.glob('TrainDataset/mask/*')
 
-test_images = glob.glob('TestDataset/*/images/*')
-test_masks = glob.glob('TestDataset/*/masks/*')
+test_folder = "../Dataset/polyp/TestDataset"
+test_images = glob.glob('../Dataset/polyp/TestDataset/*/images/*')
+test_masks = glob.glob('../Dataset/polyp/TestDataset/*/masks/*')
 
 save_path = "/content/polyp/checkpoints"
 
 image_size = 352
 
-bs = 8
-bs_val = 4
+bs = 2
+bs_val = 2
+grad_accumulate_rate = 2
 
 train_loss_meter = AverageMeter()
 iou_meter = AverageMeter()
 dice_meter = AverageMeter()
 
 n_eps = 50
+save_ckpt_ep = 30
+val_ep = 1
 best = -1.
 
 init_lr = 1e-4
 
-focalloss = smp.losses.FocalLoss(smp.losses.BINARY_MODE)
-diceloss = smp.losses.DiceLoss(smp.losses.BINARY_MODE)
-loss_bce = smp.losses.SoftBCEWithLogitsLoss()
+focal_loss = smp.losses.FocalLoss(smp.losses.BINARY_MODE)
+dice_loss = smp.losses.DiceLoss(smp.losses.BINARY_MODE)
+bce_loss = smp.losses.SoftBCEWithLogitsLoss()
+loss_fns = [bce_loss, dice_loss]
+loss_weights = [0.8, 0.2]
 
 train_transform = A.Compose([
     A.HorizontalFlip(p=0.5),
@@ -73,7 +80,7 @@ val_transform = A.Compose([
 
 # ===============================================================================
 
-def inference(model):
+def full_val(model):
     print("#" * 20)
     model.eval()
     dataset_names = ['Kvasir', 'CVC-ClinicDB', 'CVC-ColonDB', 'CVC-300', 'ETIS-LaribPolypDB']
@@ -82,7 +89,7 @@ def inference(model):
     ious, dices = AverageMeter(), AverageMeter()
 
     for dataset_name in dataset_names:
-        data_path = f'TestDataset/{dataset_name}'
+        data_path = f'{test_folder}/{dataset_name}'
         X_test = glob.glob('{}/images/*'.format(data_path))
         X_test.sort()
         y_test = glob.glob('{}/masks/*'.format(data_path))
@@ -115,8 +122,9 @@ def inference(model):
         mean_iou, mean_dice, _, _ = get_scores(gts, prs)
         ious.update(mean_iou)
         dices.update(mean_dice)
-        wandb.log({f'{dataset_name}_dice': mean_dice})
-        wandb.log({f'{dataset_name}_iou': mean_iou})
+        if use_wandb:
+            wandb.log({f'{dataset_name}_dice': mean_dice})
+            wandb.log({f'{dataset_name}_iou': mean_iou})
         table.append([dataset_name, mean_iou, mean_dice])
     table.append(['Total', ious.avg, dices.avg])
 
@@ -127,13 +135,18 @@ def inference(model):
 
 if __name__ == '__main__':
     seed_everything(seed)
-    wandb.login(key=wandb_key)
-    wandb.init(
-        project=wandb_project,
-        entity=wandb_entity,
-        name=wandb_name,
-        dir=wandb_dir
-    )
+    if use_wandb:
+        wandb.login(key=wandb_key)
+        wandb.init(
+            project=wandb_project,
+            entity=wandb_entity,
+            name=wandb_name,
+            dir=wandb_dir
+        )
+
+    # model
+    model = model()
+    model = model.to(device)
 
     # dataset
     train_dataset = ActiveDataset(
@@ -155,17 +168,13 @@ if __name__ == '__main__':
     train_loader = DataLoader(train_dataset, batch_size=bs, num_workers=4)
     total_step = len(train_loader)
 
-    # model
-    model = model()
-    model = model.to(device)
-
     # optimizer
     optimizer = torch.optim.AdamW(model.parameters(), init_lr, betas=(0.9, 0.999), weight_decay=0.01)
     lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer,
                                                               T_max=len(train_loader) * n_eps,
                                                               eta_min=init_lr / 1000)
 
-    for ep in range(n_eps):
+    for ep in range(1, n_eps + 1):
         dice_meter.reset()
         iou_meter.reset()
         train_loss_meter.reset()
@@ -181,10 +190,11 @@ if __name__ == '__main__':
             x = sample["image"].to(device)
             y = sample["mask"].to(device).to(torch.int64)
             y_hat = model.forward_dummy(x)
-            loss = 0.8 * loss_bce(y_hat.squeeze(1), y.squeeze(1).float()) + 0.2 * diceloss(y_hat, y)
+            loss = loss_weights[0] * loss_fns[0](y_hat.squeeze(1), y.squeeze(1).float()) + \
+                   loss_weights[1] * loss_fns[1](y_hat, y)
             loss.backward()
 
-            if batch_id % 2 == 0:
+            if batch_id % grad_accumulate_rate == 0:
                 optimizer.step()
                 optimizer.zero_grad()
             y_hat_mask = y_hat.sigmoid()
@@ -199,14 +209,15 @@ if __name__ == '__main__':
 
         LOGGER.info("EP {} TRAIN: LOSS = {}, avg_dice = {}, avg_iou = {}".format(ep, train_loss_meter.avg, dice_meter.avg,
                                                                            iou_meter.avg))
-        wandb.log({'train_dice': dice_meter.avg})
-        if ep >= int(1/2 * n_eps):
+        if use_wandb:
+            wandb.log({'train_dice': dice_meter.avg})
+        if ep >= save_ckpt_ep:
             torch.save(model.state_dict(), f"{save_path}/model_{ep}.pth")
 
-        if ep >= int(2/3 * n_eps):
+        if ep >= val_ep:
             # val model
             with torch.no_grad():
-                iou, dice = inference(model)
+                iou, dice = full_val(model)
                 if (dice > best):
                     torch.save(model.state_dict(), f"{save_path}/best.pth")
                     best = dice
