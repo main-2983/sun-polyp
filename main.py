@@ -32,10 +32,10 @@ train_images = glob.glob('TrainDataset/image/*')
 train_masks = glob.glob('TrainDataset/mask/*')
 
 test_folder = "../Dataset/polyp/TestDataset"
-test_images = glob.glob('../Dataset/polyp/TestDataset/*/images/*')
-test_masks = glob.glob('../Dataset/polyp/TestDataset/*/masks/*')
+test_images = glob.glob(f'{test_folder}/*/images/*')
+test_masks = glob.glob(f'{test_folder}/*/masks/*')
 
-save_path = "/content/polyp/checkpoints"
+save_path = "/content/drive/MyDrive/Polyp/checkpoints"
 
 image_size = 352
 
@@ -49,7 +49,7 @@ dice_meter = AverageMeter()
 
 n_eps = 50
 save_ckpt_ep = 30
-val_ep = 1
+val_ep = 30
 best = -1.
 
 init_lr = 1e-4
