@@ -62,7 +62,7 @@ class MLPSLow_eSEHead(BaseDecodeHead):
             lateral_attn = self.lateral_attns[idx]
             conv = self.convs[idx]
             _input = lateral_attn(x)
-            _input = conv(_inputs)
+            _input = conv(_input)
             _inputs.append(
                 resize(
                     input=_inputs,
