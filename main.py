@@ -2,6 +2,7 @@ import glob
 import wandb
 from tqdm import tqdm
 from tabulate import tabulate
+import logging
 
 import torch
 import torch.nn.functional as F
@@ -14,7 +15,7 @@ from albumentations.pytorch import ToTensorV2
 import segmentation_models_pytorch as smp
 
 from mcode import model, AverageMeter, get_scores, ActiveDataset, seed_everything,\
-    LOGGER, select_device
+    LOGGER, select_device, set_logging
 
 # config
 # ===============================================================================
@@ -161,6 +162,9 @@ if __name__ == '__main__':
         trainsize=image_size,
         transform=val_transform
     )
+
+    set_logging("Polyp")
+    LOGGER = logging.getLogger("Polyp")
     LOGGER.info(f"Train size: {len(train_dataset)}")
     LOGGER.info(f"Valid size: {len(val_dataset)}")
 
