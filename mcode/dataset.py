@@ -11,6 +11,8 @@ class ActiveDataset(Dataset):
 
     def __init__(self, image_paths=[], gt_paths=[], trainsize=352, transform=None):
         self.trainsize = trainsize
+        assert len(image_paths) > 0, "Can't find any images in dataset"
+        assert len(gt_paths) > 0, "Can't find any mask in dataset"
         self.images = image_paths
         self.masks = gt_paths
         self.size = len(self.images)
