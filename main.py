@@ -3,6 +3,7 @@ import wandb
 from tqdm import tqdm
 from tabulate import tabulate
 import logging
+import os
 
 import torch
 import torch.nn.functional as F
@@ -135,6 +136,7 @@ def full_val(model):
 
 
 if __name__ == '__main__':
+    assert os.path.exists(save_path), "Save path does not exist"
     seed_everything(seed)
     if use_wandb:
         wandb.login(key=wandb_key)
