@@ -79,3 +79,36 @@ class EfficientSELayer(nn.Module):
         out = self.conv(out)
 
         return x * out
+
+class GeSELayer(nn.Module):
+    def __init__(self,
+                 in_channels,
+                 out_channels,
+                 conv_cfg=None,
+                 act_cfg=None):
+        super(GeSELayer, self).__init__()
+        self.avgpool = nn.AdaptiveAvgPool2d(1)
+        self.bottleneck = ConvModule(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=1,
+            stride=1,
+            conv_cfg=conv_cfg,
+            act_cfg=act_cfg
+        )
+        self.cal_weight = ConvModule(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=1,
+            stride=1,
+            conv_cfg=conv_cfg,
+            act_cfg=act_cfg
+        )
+
+    def forward(self, x):
+        out = self.bottleneck(x)
+
+        weight = nn.AdaptiveAvgPool2d(1)
+        weight = self.cal_weight(weight)
+
+        return weight * out
