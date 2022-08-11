@@ -135,15 +135,15 @@ class MLPSlowESEHead_v2(BaseDecodeHead):
     def forward(self, inputs):
         # Receive 4 stage backbone feature map: 1/4, 1/8, 1/16, 1/32
         inputs = self._transform_inputs(inputs)
-        _inputs = [] # 1/4,
-        for idx in range(len(inputs)):
+        _inputs = [] # 1/4, 1/8, 1/16, 1/32
+        for idx in (range(len(inputs))):
             x = inputs[idx]
             lateral = self.laterals[idx]
             _inputs.append(lateral(x))
 
         # slow concatenate
         out = torch.empty(
-            _inputs[0].shape
+            _inputs[-1].shape
         )
         for idx in range(len(_inputs) - 1, 0, -1):
             linear_prj = self.linear_projections[idx - 1]

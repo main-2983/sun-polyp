@@ -108,7 +108,7 @@ class GeSELayer(nn.Module):
     def forward(self, x):
         out = self.bottleneck(x)
 
-        weight = nn.AdaptiveAvgPool2d(1)
+        weight = nn.AdaptiveAvgPool2d(1)(x)
         weight = self.cal_weight(weight)
 
         return weight * out
