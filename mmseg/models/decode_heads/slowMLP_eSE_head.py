@@ -156,8 +156,20 @@ class MLPSlowESEHead_v2(BaseDecodeHead):
                 x1 = out
                 x2 = _inputs[idx - 1]
             if self.ops == 'cat':
+                x1 = resize(
+                    input=x1,
+                    size=x2.shape[2:],
+                    mode=self.interpolate_mode,
+                    align_corners=self.align_corners
+                )
                 x = torch.cat([x1, x2], dim=1)
             else:
+                x1 = resize(
+                    input=x1,
+                    size=x2.shape[2:],
+                    mode=self.interpolate_mode,
+                    align_corners=self.align_corners
+                )
                 x = x1 + x2
             out = linear_prj(x)
 
