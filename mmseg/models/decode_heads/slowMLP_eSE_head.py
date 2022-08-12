@@ -23,22 +23,14 @@ class MLPSLow_eSEHead(BaseDecodeHead):
 
         assert num_inputs == len(self.in_index)
 
-        self.convs = nn.ModuleList()
-        self.lateral_attns = nn.ModuleList()
+        self.laterals = nn.ModuleList()
         for i in range(num_inputs):
-            self.lateral_attns.append(
-                EfficientSELayer(
-                    channels=self.in_channels[i]
+            self.laterals.append(
+                GeSELayer(
+                    in_channels=self.in_channels[i],
+                    out_channels=self.channels
                 )
             )
-            self.convs.append(
-                ConvModule(
-                    in_channels=self.in_channels[i],
-                    out_channels=self.channels,
-                    kernel_size=1,
-                    stride=1,
-                    norm_cfg=self.norm_cfg,
-                    act_cfg=self.act_cfg))
 
         self.linear_projections = nn.ModuleList()
         for i in range(num_inputs - 1):
@@ -59,13 +51,10 @@ class MLPSLow_eSEHead(BaseDecodeHead):
         _inputs = []
         for idx in range(len(inputs)):
             x = inputs[idx]
-            lateral_attn = self.lateral_attns[idx]
-            conv = self.convs[idx]
-            _input = lateral_attn(x)
-            _input = conv(_input)
+            lateral = self.laterals[idx]
             _inputs.append(
                 resize(
-                    input=_inputs,
+                    input=lateral(x),
                     size=inputs[0].shape[2:],
                     mode=self.interpolate_mode,
                     align_corners=self.align_corners))
