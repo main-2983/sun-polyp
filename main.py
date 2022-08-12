@@ -29,15 +29,16 @@ wandb_dir = "./wandb"
 
 seed = 2022
 device = select_device("cuda:0" if torch.cuda.is_available() else 'cpu')
+num_workers = 4
 
-train_images = glob.glob('TrainDataset/image/*')
-train_masks = glob.glob('TrainDataset/mask/*')
+train_images = glob.glob('../Dataset/polyp/TrainDataset/images/*')
+train_masks = glob.glob('../Dataset/polyp/TrainDataset/masks/*')
 
 test_folder = "../Dataset/polyp/TestDataset"
 test_images = glob.glob(f'{test_folder}/*/images/*')
 test_masks = glob.glob(f'{test_folder}/*/masks/*')
 
-save_path = "/content/drive/MyDrive/Polyp/checkpoints"
+save_path = "runs/test"
 
 image_size = 352
 
@@ -50,8 +51,8 @@ iou_meter = AverageMeter()
 dice_meter = AverageMeter()
 
 n_eps = 50
-save_ckpt_ep = 30
-val_ep = 30
+save_ckpt_ep = 40
+val_ep = 40
 best = -1.
 
 init_lr = 1e-4
@@ -131,12 +132,24 @@ def full_val(model):
     table.append(['Total', ious.avg, dices.avg])
 
     print(tabulate(table, headers=headers, tablefmt="fancy_grid"))
+    with open(f"{save_path}/exp.log", 'a') as f:
+        f.write(tabulate(table, headers=headers) + "\n")
     print("#" * 20)
     return ious.avg, dices.avg
 
 
 if __name__ == '__main__':
-    assert os.path.exists(save_path), "Save path does not exist"
+    # Create log folder
+    if not os.path.exists(f"{save_path}/checkpoints"):
+        os.makedirs(f"{save_path}/checkpoints", exist_ok=True)
+    LOGGER.info(f"Experiment will be saved to {save_path}")
+
+    # Log model config
+    with open("mcode/model.py", 'r') as f:
+        model_data = f.read().strip()
+        with open(f"{save_path}/exp.log", 'w') as log_f:
+            log_f.write(f"+ MODEL CONFIG \n {model_data} \n")
+
     seed_everything(seed)
     if use_wandb:
         wandb.login(key=wandb_key)
@@ -170,8 +183,13 @@ if __name__ == '__main__':
     LOGGER.info(f"Train size: {len(train_dataset)}")
     LOGGER.info(f"Valid size: {len(val_dataset)}")
 
+    # Log data settings
+    with open(f"{save_path}/exp.log", 'a') as f:
+        f.write(f"+ TRAIN TRANSFORM \n {str(train_transform)} \n")
+        f.write(f"+ VAL TRANSFORM \n {str(val_transform)} \n")
+
     # dataloader
-    train_loader = DataLoader(train_dataset, batch_size=bs, num_workers=4)
+    train_loader = DataLoader(train_dataset, batch_size=bs, num_workers=num_workers)
     total_step = len(train_loader)
 
     # optimizer
@@ -179,6 +197,9 @@ if __name__ == '__main__':
     lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer,
                                                               T_max=len(train_loader) * n_eps,
                                                               eta_min=init_lr / 1000)
+
+    with open(f"{save_path}/exp.log", 'a') as f:
+        f.write("Start Training...\n")
 
     for ep in range(1, n_eps + 1):
         dice_meter.reset()
@@ -215,18 +236,23 @@ if __name__ == '__main__':
 
         LOGGER.info("EP {} TRAIN: LOSS = {}, avg_dice = {}, avg_iou = {}".format(ep, train_loss_meter.avg, dice_meter.avg,
                                                                            iou_meter.avg))
+
+        # Log metrics
+        with open(f"{save_path}/exp.log", 'a') as f:
+            f.write("EP {} TRAIN: LOSS = {}, avg_dice = {}, avg_iou = {}".format(ep, train_loss_meter.avg, dice_meter.avg,
+                                                                           iou_meter.avg))
+
         if use_wandb:
             wandb.log({'train_dice': dice_meter.avg})
         if ep >= save_ckpt_ep:
-            torch.save(model.state_dict(), f"{save_path}/model_{ep}.pth")
+            torch.save(model.state_dict(), f"{save_path}/checkpoints/model_{ep}.pth")
 
         if ep >= val_ep:
             # val model
             with torch.no_grad():
                 iou, dice = full_val(model)
                 if (dice > best):
-                    torch.save(model.state_dict(), f"{save_path}/best.pth")
+                    torch.save(model.state_dict(), f"{save_path}/checkpoints/best.pth")
                     best = dice
-                    LOGGER.info("saved best: ", dice)
 
             print("================================\n")
