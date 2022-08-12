@@ -239,7 +239,7 @@ if __name__ == '__main__':
 
         # Log metrics
         with open(f"{save_path}/exp.log", 'a') as f:
-            f.write("EP {} TRAIN: LOSS = {}, avg_dice = {}, avg_iou = {}".format(ep, train_loss_meter.avg, dice_meter.avg,
+            f.write("EP {} TRAIN: LOSS = {}, avg_dice = {}, avg_iou = {} \n".format(ep, train_loss_meter.avg, dice_meter.avg,
                                                                            iou_meter.avg))
 
         if use_wandb:
