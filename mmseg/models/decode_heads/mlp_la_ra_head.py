@@ -47,6 +47,7 @@ class MLPLARAHead(BaseDecodeHead):
                 in_channels=self.channels * num_inputs,
                 out_channels=self.channels,
                 kernel_size=3,
+                padding=1,
                 norm_cfg=self.norm_cfg
             ),
             nn.ReLU(inplace=True),
@@ -54,6 +55,7 @@ class MLPLARAHead(BaseDecodeHead):
                 in_channels=self.channels,
                 out_channels=self.channels,
                 kernel_size=3,
+                padding=1,
                 norm_cfg=self.norm_cfg
             ),
             nn.ReLU(inplace=True)
