@@ -61,22 +61,24 @@ class SELayer(nn.Module):
 class EfficientSELayer(nn.Module):
     def __init__(self,
                  channels,
-                 conv_cfg=None,
-                 act_cfg=dict(type='HSigmoid', bias=3.0, divisor=6.0)):
+                 conv_cfg=None):
         super(EfficientSELayer, self).__init__()
         self.global_avgpool = nn.AdaptiveAvgPool2d(1)
-        self.conv = ConvModule(
-            in_channels=channels,
-            out_channels=channels,
-            kernel_size=1,
-            stride=1,
-            conv_cfg=conv_cfg,
-            act_cfg=act_cfg
+        self.attn_weight = nn.Sequential(
+            ConvModule(
+                in_channels=channels,
+                out_channels=channels,
+                kernel_size=1,
+                stride=1,
+                conv_cfg=conv_cfg,
+                act_cfg=None
+            ),
+            nn.Sigmoid()
         )
 
     def forward(self, x):
         out = self.global_avgpool(x)
-        out = self.conv(out)
+        out = self.attn_weight(out)
 
         return x * out
 
@@ -96,19 +98,22 @@ class GeSELayer(nn.Module):
             conv_cfg=conv_cfg,
             act_cfg=act_cfg
         )
-        self.cal_weight = ConvModule(
-            in_channels=in_channels,
-            out_channels=out_channels,
-            kernel_size=1,
-            stride=1,
-            conv_cfg=conv_cfg,
-            act_cfg=act_cfg
+        self.attn_weight = nn.Sequential(
+            ConvModule(
+                in_channels=in_channels,
+                out_channels=out_channels,
+                kernel_size=1,
+                stride=1,
+                conv_cfg=conv_cfg,
+                act_cfg=act_cfg
+            ),
+            nn.Sigmoid()
         )
 
     def forward(self, x):
         out = self.bottleneck(x)
 
         weight = nn.AdaptiveAvgPool2d(1)(x)
-        weight = self.cal_weight(weight)
+        weight = self.attn_weight(weight)
 
         return weight * out

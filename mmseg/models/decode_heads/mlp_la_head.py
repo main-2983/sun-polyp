@@ -5,11 +5,11 @@ from mmcv.cnn import ConvModule
 from mmseg.models.builder import HEADS
 from mmseg.models.decode_heads.decode_head import BaseDecodeHead
 from mmseg.ops import resize
-from mmseg.models.utils import EfficientSELayer, EfficientLayerAttn, ReversedAttention
+from mmseg.models.utils import LayerAttention
 
 
 @HEADS.register_module()
-class MLPeSEHead(BaseDecodeHead):
+class MLPLAHead(BaseDecodeHead):
     def __init__(self,
                  interpolate_mode='bilinear',
                  **kwargs):
@@ -20,14 +20,8 @@ class MLPeSEHead(BaseDecodeHead):
 
         assert num_inputs == len(self.in_index)
 
-        self.lateral_attns = nn.ModuleList()
         self.convs = nn.ModuleList()
         for i in range(num_inputs):
-            self.lateral_attns.append(
-                EfficientSELayer(
-                    channels=self.in_channels[i]
-                )
-            )
             self.convs.append(
                 ConvModule(
                     in_channels=self.in_channels[i],
@@ -37,12 +31,10 @@ class MLPeSEHead(BaseDecodeHead):
                     norm_cfg=self.norm_cfg,
                     act_cfg=self.act_cfg))
 
-        self.layer_attn = EfficientLayerAttn(
-            in_channels=self.channels * num_inputs,
+        self.layer_attn = LayerAttention(
+            in_channels=num_inputs * self.channels,
             groups=num_inputs
         )
-
-        self.reversed_attn = ReversedAttention()
 
         self.fusion_conv = ConvModule(
             in_channels=self.channels * num_inputs,
@@ -56,22 +48,16 @@ class MLPeSEHead(BaseDecodeHead):
         outs = []
         for idx in range(len(inputs)):
             x = inputs[idx]
-            lateral_attn = self.lateral_attns[idx]
             conv = self.convs[idx]
-
-            feat = lateral_attn(x)
-            feat = conv(feat)
-
             outs.append(
                 resize(
-                    input=feat,
+                    input=conv(x),
                     size=inputs[0].shape[2:],
                     mode=self.interpolate_mode,
                     align_corners=self.align_corners))
 
         out = torch.cat(outs, dim=1)
         out = self.layer_attn(out)
-        out = self.reversed_attn(out)
         out = self.fusion_conv(out)
 
         out = self.cls_seg(out)
