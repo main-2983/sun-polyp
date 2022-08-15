@@ -120,3 +120,8 @@ demo/
 
 # Pytorch
 *.pth
+wandb/
+checkpoints/
+TestDataset/
+TrainDataset/
+mmseg/
