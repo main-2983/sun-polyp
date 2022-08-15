@@ -5,18 +5,11 @@ from mmcv.cnn import ConvModule
 from mmseg.models.builder import HEADS
 from mmseg.models.decode_heads.decode_head import BaseDecodeHead
 from mmseg.ops import resize
+from mmseg.models.utils import ReversedAttention, LayerAttention
+
 
 @HEADS.register_module()
-class MLPRAHead(BaseDecodeHead):
-    """The all mlp Head of segformer.
-
-    This head is the implementation of
-    `Segformer <https://arxiv.org/abs/2105.15203>` _.
-
-    Args:
-        interpolate_mode: The interpolate mode of MLP head upsample operation.
-            Default: 'bilinear'.
-    """
+class MLPLARAHead(BaseDecodeHead):
 
     def __init__(self, interpolate_mode='bilinear', **kwargs):
         super().__init__(input_transform='multiple_select', **kwargs)
@@ -37,11 +30,34 @@ class MLPRAHead(BaseDecodeHead):
                     norm_cfg=self.norm_cfg,
                     act_cfg=self.act_cfg))
 
+        self.layer_attn = LayerAttention(
+            in_channels=self.channels * num_inputs,
+            groups=num_inputs
+        )
+
         self.fusion_conv = ConvModule(
             in_channels=self.channels * num_inputs,
             out_channels=self.channels,
             kernel_size=1,
             norm_cfg=self.norm_cfg)
+
+        self.reversed_attn = nn.Sequential(
+            ReversedAttention(),
+            ConvModule(
+                in_channels=self.channels * num_inputs,
+                out_channels=self.channels,
+                kernel_size=3,
+                norm_cfg=self.norm_cfg
+            ),
+            nn.ReLU(inplace=True),
+            ConvModule(
+                in_channels=self.channels,
+                out_channels=self.channels,
+                kernel_size=3,
+                norm_cfg=self.norm_cfg
+            ),
+            nn.ReLU(inplace=True)
+        )
 
     def forward(self, inputs):
         # Receive 4 stage backbone feature map: 1/4, 1/8, 1/16, 1/32
@@ -50,9 +66,6 @@ class MLPRAHead(BaseDecodeHead):
         for idx in range(len(inputs)):
             x = inputs[idx]
             conv = self.convs[idx]
-            '''if idx == 3:
-                test_tensor = conv(x)
-                return test_tensor'''
             outs.append(
                 resize(
                     input=conv(x),
@@ -60,7 +73,11 @@ class MLPRAHead(BaseDecodeHead):
                     mode=self.interpolate_mode,
                     align_corners=self.align_corners))
 
-        out = self.fusion_conv(torch.cat(outs, dim=1))
+        out = torch.cat(outs, dim=1)
+        out_la = self.layer_attn(out)
+        out_fuse = self.fusion_conv(out_la)
+        out_ra = self.reversed_attn(out_la)
+        out = out_fuse + out_ra
 
         out = self.cls_seg(out)
 
