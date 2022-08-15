@@ -48,17 +48,17 @@ class MLPLARAHead(BaseDecodeHead):
                 out_channels=self.channels,
                 kernel_size=3,
                 padding=1,
-                norm_cfg=self.norm_cfg
+                norm_cfg=self.norm_cfg,
+                act_cfg=dict(type='ReLU')
             ),
-            nn.ReLU(inplace=True),
             ConvModule(
                 in_channels=self.channels,
                 out_channels=self.channels,
                 kernel_size=3,
                 padding=1,
-                norm_cfg=self.norm_cfg
+                norm_cfg=self.norm_cfg,
+                act_cfg=dict(type='ReLU')
             ),
-            nn.ReLU(inplace=True)
         )
 
     def forward(self, inputs):
