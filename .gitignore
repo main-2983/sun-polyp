@@ -124,4 +124,3 @@ wandb/
 checkpoints/
 TestDataset/
 TrainDataset/
-mmseg/
