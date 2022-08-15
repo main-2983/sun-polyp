@@ -15,7 +15,7 @@ import albumentations as A
 from albumentations.pytorch import ToTensorV2
 import segmentation_models_pytorch as smp
 
-from mcode import model, AverageMeter, get_scores, ActiveDataset, seed_everything,\
+from mcode import model, AverageMeter, get_scores, ActiveDataset, set_seed_everything,\
     LOGGER, select_device, set_logging
 
 # config
@@ -150,7 +150,7 @@ if __name__ == '__main__':
         with open(f"{save_path}/exp.log", 'w') as log_f:
             log_f.write(f"+ MODEL CONFIG \n {model_data} \n")
 
-    seed_everything(seed)
+    set_seed_everything(seed)
     if use_wandb:
         wandb.login(key=wandb_key)
         wandb.init(
