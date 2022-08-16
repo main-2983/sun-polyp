@@ -24,7 +24,8 @@ use_wandb = False
 wandb_key = "d0ee13baa7af4379eff80e68b11cf976bbb8d673"
 wandb_project = "Seg-Uper"
 wandb_entity = "ssl-online"
-wandb_name = "B1-eSE_eLA_RA"
+wandb_name = "TestGroup (2)"
+wandb_group = None
 wandb_dir = "./wandb"
 
 seed = 2022
@@ -152,12 +153,14 @@ if __name__ == '__main__':
 
     set_seed_everything(seed)
     if use_wandb:
+        assert wandb_group is not None, "Please specify wandb group"
         wandb.login(key=wandb_key)
         wandb.init(
             project=wandb_project,
             entity=wandb_entity,
             name=wandb_name,
-            dir=wandb_dir
+            dir=wandb_dir,
+            group=wandb_group
         )
 
     # model
@@ -256,3 +259,6 @@ if __name__ == '__main__':
                     best = dice
 
             print("================================\n")
+
+    if use_wandb:
+        wandb.save(f"{save_path}/exp.log")
