@@ -43,9 +43,9 @@ save_path = "runs/test"
 
 image_size = 352
 
-bs = 2
+bs = 16
 bs_val = 2
-grad_accumulate_rate = 2
+grad_accumulate_rate = 1
 
 train_loss_meter = AverageMeter()
 iou_meter = AverageMeter()
