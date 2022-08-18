@@ -8,7 +8,7 @@ from mmseg.ops import resize
 
 
 @HEADS.register_module()
-class MLPSLowCatHead(BaseDecodeHead):
+class MLPSLowHead(BaseDecodeHead):
     def __init__(self,
                  interpolate_mode='bilinear',
                  ops='cat',
@@ -45,12 +45,6 @@ class MLPSLowCatHead(BaseDecodeHead):
                     act_cfg=self.act_cfg
                 )
             )
-        self.fusion_conv = ConvModule(
-            in_channels=self.channels * num_inputs,
-            out_channels=self.channels,
-            kernel_size=1,
-            norm_cfg=self.norm_cfg
-        )
 
     def forward(self, inputs):
         # Receive 4 stage backbone feature map: 1/4, 1/8, 1/16, 1/32
@@ -67,10 +61,9 @@ class MLPSLowCatHead(BaseDecodeHead):
                     align_corners=self.align_corners))
 
         # slow concatenate
-        _out = torch.empty(
+        out = torch.empty(
             _inputs[0].shape
         )
-        outs = [_inputs[-1]]
         for idx in range(len(_inputs) - 1, 0, -1):
             linear_prj = self.linear_projections[idx - 1]
             # cat first 2 from _inputs
@@ -79,16 +72,14 @@ class MLPSLowCatHead(BaseDecodeHead):
                 x2 = _inputs[idx - 1]
             # if not first 2 then cat from prev outs and _inputs
             else:
-                x1 = _out
+                x1 = out
                 x2 = _inputs[idx - 1]
             if self.ops == 'cat':
                 x = torch.cat([x1, x2], dim=1)
             else:
                 x = x1 + x2
-            _out = linear_prj(x)
-            outs.append(_out)
+            out = linear_prj(x)
 
-        out = self.fusion_conv(torch.cat(outs, dim=1))
         out = self.cls_seg(out)
 
         return out
