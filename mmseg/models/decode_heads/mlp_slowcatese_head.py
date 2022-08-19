@@ -9,7 +9,7 @@ from mmseg.models.utils import EfficientSELayer
 
 
 @HEADS.register_module()
-class MLP_OSAHead(BaseDecodeHead):
+class MLPSLowCatESEHead(BaseDecodeHead):
     def __init__(self,
                  interpolate_mode='bilinear',
                  ops='cat',
@@ -46,15 +46,15 @@ class MLP_OSAHead(BaseDecodeHead):
                     act_cfg=self.act_cfg
                 )
             )
-
-        self.efficientSE = EfficientSELayer(
-            channels=self.channels * num_inputs
+        self.ese_module = EfficientSELayer(
+            self.channels * num_inputs
         )
         self.fusion_conv = ConvModule(
             in_channels=self.channels * num_inputs,
             out_channels=self.channels,
             kernel_size=1,
-            norm_cfg=self.norm_cfg)
+            norm_cfg=self.norm_cfg
+        )
 
     def forward(self, inputs):
         # Receive 4 stage backbone feature map: 1/4, 1/8, 1/16, 1/32
@@ -71,7 +71,7 @@ class MLP_OSAHead(BaseDecodeHead):
                     align_corners=self.align_corners))
 
         # slow concatenate
-        out = torch.empty(
+        _out = torch.empty(
             _inputs[0].shape
         )
         outs = [_inputs[-1]]
@@ -83,22 +83,18 @@ class MLP_OSAHead(BaseDecodeHead):
                 x2 = _inputs[idx - 1]
             # if not first 2 then cat from prev outs and _inputs
             else:
-                x1 = out
+                x1 = _out
                 x2 = _inputs[idx - 1]
             if self.ops == 'cat':
                 x = torch.cat([x1, x2], dim=1)
             else:
                 x = x1 + x2
-            out = linear_prj(x)
-            outs.append(out)
+            _out = linear_prj(x)
+            outs.append(_out)
 
-        outs = torch.cat(outs, dim=1)
-        outs = self.efficientSE(outs)
-        outs = self.fusion_conv(outs)
+        out = torch.cat(outs, dim=1)
+        out = self.ese_module(out)
+        out = self.fusion_conv(out)
+        out = self.cls_seg(out)
 
-        # perform identity mapping
-        outs = _inputs[-1] + outs
-
-        outs = self.cls_seg(outs)
-
-        return outs
+        return out
