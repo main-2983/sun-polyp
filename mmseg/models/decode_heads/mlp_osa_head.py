@@ -5,7 +5,7 @@ from mmcv.cnn import ConvModule
 from mmseg.models.builder import HEADS
 from mmseg.models.decode_heads.decode_head import BaseDecodeHead
 from mmseg.ops import resize
-from mmseg.models.utils import EfficientSELayer
+from mmseg.models.utils import SELayer
 
 
 @HEADS.register_module()
@@ -47,7 +47,7 @@ class MLP_OSAHead(BaseDecodeHead):
                 )
             )
 
-        self.efficientSE = EfficientSELayer(
+        self.se_module = SELayer(
             channels=self.channels * num_inputs
         )
         self.fusion_conv = ConvModule(
@@ -93,7 +93,7 @@ class MLP_OSAHead(BaseDecodeHead):
             outs.append(out)
 
         outs = torch.cat(outs, dim=1)
-        outs = self.efficientSE(outs)
+        outs = self.se_module(outs)
         outs = self.fusion_conv(outs)
 
         # perform identity mapping
