@@ -35,6 +35,7 @@ from .mlp_la_ra_head import MLPLARAHead
 from .mlp_osa_head import MLP_OSAHead
 from .mlp_slow_head import MLPSLowHead
 from .mlp_slowcat_head import MLPSLowCatHead
+from .mlp_slowcatse_head import MLPSLowCatSEHead
 
 __all__ = [
     'FCNHead', 'PSPHead', 'ASPPHead', 'PSAHead', 'NLHead', 'GCHead', 'CCHead',
@@ -45,5 +46,6 @@ __all__ = [
     'SegformerHead', 'ISAHead', 'STDCHead', 'IterativeDecodeHead',
     'KernelUpdateHead', 'KernelUpdator', 'UperLRCHead',
     'MLPGeSEHead', 'MLPGeSEHead_v2', 'MLPSEHead', 'MLPLAHead',
-    'MLPLARAHead', 'MLP_OSAHead', 'MLPSLowHead', 'MLPSLowCatHead'
+    'MLPLARAHead', 'MLP_OSAHead', 'MLPSLowHead', 'MLPSLowCatHead',
+    'MLPSLowCatSEHead'
 ]
