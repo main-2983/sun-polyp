@@ -30,7 +30,7 @@ class SSFormerHead(BaseDecodeHead):
                     bias=False
                 ),
                 ConvModule(
-                    in_channels=self.in_channels[i],
+                    in_channels=self.channels,
                     out_channels=self.channels,
                     kernel_size=3,
                     padding=1,
