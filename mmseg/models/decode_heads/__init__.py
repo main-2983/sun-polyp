@@ -39,6 +39,7 @@ from .mlp_slowcatse_head import MLPSLowCatSEHead
 from .mlp_slowcatese_head import MLPSLowCatESEHead
 from .mlp_slowcat_la_head import MLPSLowCatLAHead
 from .ssformer_head import SSFormerHead
+from .uper_headv3 import UPerHeadV3
 
 __all__ = [
     'FCNHead', 'PSPHead', 'ASPPHead', 'PSAHead', 'NLHead', 'GCHead', 'CCHead',
@@ -51,5 +52,5 @@ __all__ = [
     'MLPGeSEHead', 'MLPGeSEHead_v2', 'MLPSEHead', 'MLPLAHead',
     'MLPLARAHead', 'MLP_OSAHead', 'MLPSLowHead', 'MLPSLowCatHead',
     'MLPSLowCatSEHead', 'MLPSLowCatESEHead', 'MLPSLowCatLAHead',
-    'MLP_OSAHead_v2', 'SSFormerHead', 'MLP_OSAHead_v3', 'MLP_OSAHead_v4'
+    'MLP_OSAHead_v2', 'SSFormerHead', 'MLP_OSAHead_v3', 'MLP_OSAHead_v4', 'UPerHeadV3'
 ]

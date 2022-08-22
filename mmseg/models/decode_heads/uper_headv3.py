@@ -31,7 +31,24 @@ class UPerHeadV3(BaseDecodeHead):
     def __init__(self, pool_scales=(1, 2, 3, 6), **kwargs):
         super(UPerHeadV3, self).__init__(
             input_transform='multiple_select', **kwargs)
-
+        # PSP Module
+        self.psp_modules = PPM(
+            pool_scales,
+            self.in_channels[-1],
+            self.channels,
+            conv_cfg=self.conv_cfg,
+            norm_cfg=self.norm_cfg,
+            act_cfg=self.act_cfg,
+            align_corners=self.align_corners)
+        self.bottleneck = ConvModule(
+            self.in_channels[-1] + len(pool_scales) * self.channels,
+            self.in_channels[-1],
+            3,
+            padding=1,
+            conv_cfg=self.conv_cfg,
+            norm_cfg=self.norm_cfg,
+            act_cfg=self.act_cfg)
+        
         self.fpn_bottleneck_3 = ConvModule(
             self.channels * 2,
             self.channels, 
@@ -56,16 +73,25 @@ class UPerHeadV3(BaseDecodeHead):
             self.conv_cfg, self.norm_cfg, self.act_cfg
         )
 
+    def psp_forward(self, inputs):
+        """Forward function of PSP module."""
+        x = inputs[-1]
+        psp_outs = [x]
+        psp_outs.extend(self.psp_modules(x))
+        psp_outs = torch.cat(psp_outs, dim=1)
+        output = self.bottleneck(psp_outs)
 
+        return output
     def _forward_feature(self, inputs):
 
         inputs = self._transform_inputs(inputs)
-
-
+        inputs[-1] = self.psp_forward(inputs)
+        
         # build top-down path 3, 2, 1
         fpn_outs = self.fuse_feature(inputs)
 
-
+        for i in fpn_outs:
+            print(i.shape)
         out = self.mlp_slow(fpn_outs)
 
 

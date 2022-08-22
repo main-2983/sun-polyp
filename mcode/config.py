@@ -12,22 +12,22 @@ from .metrics import AverageMeter
 
 # config
 # ===============================================================================
-use_wandb = False
+use_wandb = True
 wandb_key = "d0ee13baa7af4379eff80e68b11cf976bbb8d673"
 wandb_project = "Seg-Uper"
 wandb_entity = "ssl-online"
-wandb_name = "TestGroup (2)"
-wandb_group = None
+wandb_name = "RFP (1)"
+wandb_group = "RFP"
 wandb_dir = "./wandb"
 
 seed = 2022
-device = "cuda:0" if torch.cuda.is_available() else 'cpu'
+device = "cuda:1" if torch.cuda.is_available() else 'cpu'
 num_workers = 8
 
-train_images = glob.glob('../Dataset/polyp/TrainDataset/images/*')
-train_masks = glob.glob('../Dataset/polyp/TrainDataset/masks/*')
+train_images = glob.glob('/mnt/sdd/nguyen.van.quan/Researchs/Polyp/TrainDataset/image/*')
+train_masks = glob.glob('/mnt/sdd/nguyen.van.quan/Researchs/Polyp/TrainDataset/mask/*')
 
-test_folder = "../Dataset/polyp/TestDataset"
+test_folder = "/mnt/sdd/nguyen.van.quan/Researchs/Polyp/TestDataset"
 test_images = glob.glob(f'{test_folder}/*/images/*')
 test_masks = glob.glob(f'{test_folder}/*/masks/*')
 
@@ -94,10 +94,10 @@ model_cfg = dict(
         drop_path_rate=0.1,
         pretrained=pretrained),
     decode_head=dict(
-        type='SSFormerHead',
+        type='UPerHeadV3',
         in_channels=[64, 128, 320, 512],
         in_index=[0, 1, 2, 3],
-        channels=256,
+        channels=128,
         dropout_ratio=0.1,
         num_classes=1,
         norm_cfg=dict(type='BN', requires_grad=True),

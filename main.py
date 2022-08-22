@@ -76,7 +76,7 @@ if __name__ == '__main__':
     LOGGER.info(f"Experiment will be saved to {save_path}")
 
     # Log config
-    with open("mcode/config.py", 'r') as f:
+    with open("/mnt/sdd/nguyen.van.quan/Researchs/Polyp/mcode/config.py", 'r') as f:
         config_data = f.read().strip()
         with open(f"{save_path}/exp.log", 'w') as log_f:
             log_f.write(f"{config_data} \n")

@@ -79,8 +79,8 @@ class FusionNode(nn.Module):
             upsample_weight = (
                 self.temp * channel**(-0.5) *
                 self.spatial_weight(torch.cat((x1, x2), dim=1)))
-            upsample_weight = F.softmax(
-                upsample_weight.reshape(batch, 1, -1), dim=-1).reshape(
+            upsample_weight = torch.sigmoid(
+                upsample_weight.reshape(batch, 1, -1)).reshape(
                     batch, 1, height, width) * height * width
             x2 = upsample_weight * x2
         weight = torch.cat((weight1, weight2), dim=1)
@@ -320,11 +320,6 @@ class RCFPN(nn.Module):
             out_norm_cfg=norm_cfg,
             op_num=2)
 
-        self.CSN = CrossShiftNet(
-            in_channels=out_channels,
-            out_channels=out_channels,
-            out_norm_cfg=norm_cfg)
-
     def init_weights(self):
         """Initialize the weights of module."""
         for m in self.lateral_convs.modules():
@@ -338,14 +333,8 @@ class RCFPN(nn.Module):
             lateral_conv(inputs[i + self.start_level])
             for i, lateral_conv in enumerate(self.lateral_convs)
         ]
-        # # build P6-P7 on top of P5
-        # for downsample in self.extra_downsamples:
-        #     _, _, h, w = feats[-1].size()
-        #     feats.append(
-        #         downsample(
-        #             F.pad(feats[-1], [0, w % 2, 0, h % 2], 'replicate')))
-
         c3, c4, c5, c6 = feats
+        # c6 = inputs[-1]
         
         # fixed order 
         p3 = self.RevFP['p3']([c3, c4], out_size=c3.shape[-2:])
