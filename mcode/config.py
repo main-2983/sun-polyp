@@ -21,8 +21,8 @@ wandb_group = None
 wandb_dir = "./wandb"
 
 seed = 2022
-device = select_device("cuda:0" if torch.cuda.is_available() else 'cpu')
-num_workers = 4
+device = "cuda:0" if torch.cuda.is_available() else 'cpu'
+num_workers = 8
 
 train_images = glob.glob('../Dataset/polyp/TrainDataset/images/*')
 train_masks = glob.glob('../Dataset/polyp/TrainDataset/masks/*')
