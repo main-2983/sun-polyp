@@ -6,6 +6,8 @@ import platform
 
 import torch
 
+from mmcv.cnn import get_model_complexity_info
+
 from pytorch_lightning import seed_everything
 
 
@@ -70,3 +72,16 @@ def select_device(device='', batch_size=0, newline=True):
         s = s.rstrip()
     LOGGER.info(s.encode().decode('ascii', 'ignore') if platform.system() == 'Windows' else s)  # emoji-safe
     return torch.device(arg)
+
+
+def get_model_info(model, tsize):
+    model.eval()
+
+    input_shape = (3, tsize[0], tsize[1])
+    flops, params = get_model_complexity_info(model, input_shape)
+    split_line = '=' * 30
+    print('{0}\nInput shape: {1}\nFlops: {2}\nParams: {3}\n{0}'.format(
+        split_line, input_shape, flops, params))
+    print('!!!Please be cautious if you use the results in papers. '
+          'You may need to check if all ops are supported and verify that the '
+          'flops computation is correct.')

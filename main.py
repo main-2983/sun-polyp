@@ -8,7 +8,9 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 import numpy as np
 
-from mcode import ActiveDataset, get_scores, LOGGER, set_seed_everything, model, set_logging
+from mmseg.models.builder import build_segmentor
+
+from mcode import ActiveDataset, get_scores, LOGGER, set_seed_everything, set_logging
 from mcode.config import *
 
 
@@ -44,7 +46,7 @@ def full_val(model):
             gt = np.asarray(gt, np.float32)
             image = image.to(device)
 
-            res = model.forward_dummy(image)
+            res = model(image)
             res = F.interpolate(res, size=gt.shape, mode='bilinear', align_corners=False)
             res = res.sigmoid().data.cpu().numpy().squeeze()
             res = (res - res.min()) / (res.max() - res.min() + 1e-8)
@@ -73,11 +75,11 @@ if __name__ == '__main__':
         os.makedirs(f"{save_path}/checkpoints", exist_ok=True)
     LOGGER.info(f"Experiment will be saved to {save_path}")
 
-    # Log model config
-    with open("mcode/model.py", 'r') as f:
-        model_data = f.read().strip()
+    # Log config
+    with open("mcode/config.py", 'r') as f:
+        config_data = f.read().strip()
         with open(f"{save_path}/exp.log", 'w') as log_f:
-            log_f.write(f"+ MODEL CONFIG \n {model_data} \n")
+            log_f.write(f"{config_data} \n")
 
     set_seed_everything(seed)
     if use_wandb:
@@ -92,7 +94,8 @@ if __name__ == '__main__':
         )
 
     # model
-    model = model()
+    model = build_segmentor(model_cfg)
+    model.init_weights()
     model = model.to(device)
 
     # dataset
@@ -113,11 +116,6 @@ if __name__ == '__main__':
     LOGGER = logging.getLogger("Polyp")
     LOGGER.info(f"Train size: {len(train_dataset)}")
     LOGGER.info(f"Valid size: {len(val_dataset)}")
-
-    # Log data settings
-    with open(f"{save_path}/exp.log", 'a') as f:
-        f.write(f"+ TRAIN TRANSFORM \n {str(train_transform)} \n")
-        f.write(f"+ VAL TRANSFORM \n {str(val_transform)} \n")
 
     # dataloader
     train_loader = DataLoader(train_dataset, batch_size=bs, num_workers=num_workers)
@@ -147,7 +145,7 @@ if __name__ == '__main__':
             n = sample["image"].shape[0]
             x = sample["image"].to(device)
             y = sample["mask"].to(device).to(torch.int64)
-            y_hat = model.forward_dummy(x)
+            y_hat = model(x)
             loss = loss_weights[0] * loss_fns[0](y_hat.squeeze(1), y.squeeze(1).float()) + \
                    loss_weights[1] * loss_fns[1](y_hat, y)
             loss.backward()
