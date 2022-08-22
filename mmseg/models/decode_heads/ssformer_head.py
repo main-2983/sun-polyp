@@ -81,10 +81,7 @@ class SSFormerHead(BaseDecodeHead):
             else:
                 x1 = out
                 x2 = _inputs[idx - 1]
-            if self.ops == 'cat':
-                x = torch.cat([x1, x2], dim=1)
-            else:
-                x = x1 + x2
+            x = torch.cat([x1, x2], dim=1)
             out = linear_prj(x)
 
         out = self.cls_seg(out)
