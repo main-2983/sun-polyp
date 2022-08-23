@@ -90,8 +90,6 @@ class UPerHeadV3(BaseDecodeHead):
         # build top-down path 3, 2, 1
         fpn_outs = self.fuse_feature(inputs)
 
-        for i in fpn_outs:
-            print(i.shape)
         out = self.mlp_slow(fpn_outs)
 
 

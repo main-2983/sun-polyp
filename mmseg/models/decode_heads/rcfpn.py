@@ -79,8 +79,8 @@ class FusionNode(nn.Module):
             upsample_weight = (
                 self.temp * channel**(-0.5) *
                 self.spatial_weight(torch.cat((x1, x2), dim=1)))
-            upsample_weight = torch.sigmoid(
-                upsample_weight.reshape(batch, 1, -1)).reshape(
+            upsample_weight = F.softmax(
+                upsample_weight.reshape(batch, 1, -1), dim=-1).reshape(
                     batch, 1, height, width) * height * width
             x2 = upsample_weight * x2
         weight = torch.cat((weight1, weight2), dim=1)
@@ -282,7 +282,7 @@ class RCFPN(nn.Module):
             l_conv = ConvModule(
                 in_channels[i],
                 out_channels,
-                kernel_size=1,
+                kernel_size=3, padding=1, #???
                 norm_cfg=norm_cfg,
                 act_cfg=None)
             self.lateral_convs.append(l_conv)
@@ -304,22 +304,23 @@ class RCFPN(nn.Module):
             out_channels=out_channels,
             out_conv_cfg=out_conv_cfg,
             out_norm_cfg=norm_cfg,
-            op_num=3)
+            op_num=3,upsample_attn=False,) #???
 
         self.RevFP['p4'] = FusionNode(
             in_channels=out_channels,
             out_channels=out_channels,
             out_conv_cfg=out_conv_cfg,
             out_norm_cfg=norm_cfg,
-            op_num=3)
+            op_num=3,upsample_attn=False,) #???
 
         self.RevFP['p3'] = FusionNode(
             in_channels=out_channels,
             out_channels=out_channels,
             out_conv_cfg=out_conv_cfg,
             out_norm_cfg=norm_cfg,
-            op_num=2)
-
+            op_num=2,upsample_attn=False,) #???
+        
+            
     def init_weights(self):
         """Initialize the weights of module."""
         for m in self.lateral_convs.modules():
