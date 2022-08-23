@@ -4,7 +4,7 @@ from mmcv.cnn import ConvModule
 
 from mmseg.ops import resize
 from mmseg.models.utils import SELayer
-
+from .axial_attention import AA_kernel 
 class MLP_OSA(nn.Module):
     def __init__(self,
                  interpolate_mode='bilinear',
@@ -29,23 +29,22 @@ class MLP_OSA(nn.Module):
         for i in range(num_inputs - 1):
             self.linear_projections.append(
                 nn.Sequential(
+                    SELayer(self.channels * 2),
                     ConvModule(
                     in_channels=self.channels * 2 if self.ops == 'cat' else self.channels,
-                    out_channels=self.channels, norm_cfg=dict(type='BN', requires_grad=True),
-                    kernel_size=1, 
-                    padding=0),
-                    SELayer(self.channels),
+                    out_channels=self.channels, norm_cfg=None,
+                    kernel_size=3, 
+                    padding=1),
+                    
                 )
             )
         
-        self.se_module = SELayer(
-            channels=self.channels * num_inputs
-        )
+        self.aa_module = AA_kernel(self.channels * num_inputs, self.channels * num_inputs)
         self.fusion_conv = ConvModule(
             in_channels=self.channels * num_inputs,
             out_channels=self.channels,
             kernel_size=3, padding=1,
-            norm_cfg=dict(type='BN', requires_grad=True))
+            norm_cfg=None)
 
     def forward(self, inputs):
         # Receive 4 stage backbone feature map: 1/4, 1/8, 1/16, 1/32
@@ -83,10 +82,11 @@ class MLP_OSA(nn.Module):
             outs.append(_out)
 
         out = torch.cat(outs, dim=1)
-        # out = self.se_module(out) ???
+        out = self.aa_module(out)
         out = self.fusion_conv(out)
 
-        # perform identity mapping
+        # # perform identity mapping
         out = outs[-1] + out
+        outs.append(out)
 
-        return out
+        return outs

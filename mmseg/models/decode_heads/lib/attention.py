@@ -122,7 +122,7 @@ class LayerAttention(nn.Module):
         self.in_channels = in_channels
         self.groups = groups
         self.layer_attention = nn.Sequential(
-            nn.Conv2d(self.in_channels, self.in_channels // la_down_rate, 1),
+            nn.Conv2d(self.in_channels, self.in_channels // la_down_rate, kernel_size=3, padding=1),
             nn.ReLU(inplace=True),
             nn.Conv2d(
                 self.in_channels // la_down_rate,

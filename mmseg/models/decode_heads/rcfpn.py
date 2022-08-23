@@ -90,6 +90,8 @@ class FusionNode(nn.Module):
         if self.op_num == 3:
             x3 = x[2]
             x1 = self.pre_fusion(result)
+            # x1 = result
+            
             weight1 = self.gap(x1)
             weight3 = self.gap(x3)
             weight = torch.cat((weight1, weight3), dim=1)
@@ -116,134 +118,6 @@ class FusionNode(nn.Module):
         for feat in x:
             inputs.append(self._resize(feat, out_size))
         return self.dynamicFusion(inputs)
-
-
-class ScaleBranch(nn.Module):
-
-    def __init__(self, in_channels=256, out_channels=256):
-        super(ScaleBranch, self).__init__()
-        self.in_channels = in_channels
-        self.out_channels = out_channels
-        self.spatialPooling = nn.AdaptiveAvgPool3d((5, 1, 1))
-        self.scalePooling = nn.AdaptiveAvgPool2d(1)
-        self.channel_agg = nn.Conv2d(in_channels, 1, kernel_size=1)
-        self.trans = nn.Conv2d(self.in_channels, self.out_channels, 1)
-
-    def forward(self, x):
-        x = self.spatialPooling(x.permute(0, 2, 1, 3, 4)).reshape(
-            x.size(0), x.size(2), 5, 1)
-        batch, channel, height, width = x.size()
-        channel_context = self.channel_agg(x)
-        channel_context = channel_context.view(batch, 1, height * width)
-        channel_context = F.softmax(channel_context, dim=-1)
-        channel_context = channel_context * height * width
-        channel_context = channel_context.view(batch, 1, height, width)
-        context = self.scalePooling(x * channel_context)
-        context = self.trans(context).unsqueeze(0)
-        return context
-
-
-class SpatialBranch(nn.Module):
-
-    def __init__(self, in_channels=256, out_channels=256):
-        super(SpatialBranch, self).__init__()
-        self.in_channels = in_channels
-        self.out_channels = out_channels
-        self.scalePooling = nn.AvgPool3d((5, 1, 1))
-        self.spatialPooling = nn.AdaptiveAvgPool2d(1)
-        self.channel_agg = nn.Conv2d(in_channels, 1, kernel_size=1)
-        self.trans = nn.Conv2d(self.in_channels, self.out_channels, 1)
-
-    def forward(self, x):
-        x = self.scalePooling(x.permute(0, 2, 1, 3, 4)).squeeze(2)
-        batch, channel, height, width = x.size()
-        channel_context = self.channel_agg(x)
-        channel_context = channel_context.view(batch, 1, height * width)
-        channel_context = F.softmax(channel_context, dim=-1)
-        channel_context = channel_context * height * width
-        channel_context = channel_context.view(batch, 1, height, width)
-        context = self.spatialPooling(x * channel_context)
-        context = self.trans(context).unsqueeze(0)
-        return context
-
-
-class ScaleShift(nn.Module):
-
-    def __init__(self, in_channels=256, out_channels=256, out_norm_cfg=None):
-        super(ScaleShift, self).__init__()
-        self.in_channels = in_channels
-        self.out_channels = out_channels
-        self.ratio = 16
-        self.aggregation = nn.ModuleList()
-        for i in range(5):
-            self.aggregation.append(
-                nn.Sequential(
-                    ConvModule(
-                        self.in_channels +
-                        self.in_channels * 4 // self.ratio,
-                        self.in_channels,
-                        kernel_size=1,
-                        norm_cfg=out_norm_cfg),
-                    nn.Conv2d(
-                        self.in_channels, self.out_channels, kernel_size=1)))
-
-    def forward(self, x):
-        res = x
-        x = self.shift(x)  # 5*B*C*H*W
-        feats = []
-        for i in range(5):
-            feat = self.aggregation[i](x[i])
-            feats.append(feat.unsqueeze(1))  # B*1*C*H*W
-        feats = torch.cat(feats, dim=1)  # B*5*C*H*W
-        return (res + feats)
-
-    def shift(self, x):
-        B, L, C, H, W = x.size()
-        part = C // self.ratio
-        out = torch.zeros_like(x[:, :, :4 * part])
-        out[:, :-1, :part] = x[:, 1:, :part]
-        out[:, -1:, :part] = x[:, :1, :part]
-        out[:, 1:, part:2 * part] = x[:, :-1, part:2 * part]
-        out[:, :1, part:2 * part] = x[:, -1:, part:2 * part]
-        out[:, :-2, 2 * part:3 * part] = x[:, 2:, 2 * part:3 * part]
-        out[:, -2:, 2 * part:3 * part] = x[:, :2, 2 * part:3 * part]
-        out[:, 2:, 3 * part:4 * part] = x[:, :-2, 3 * part:4 * part]
-        out[:, :2, 3 * part:4 * part] = x[:, -2:, 3 * part:4 * part]
-        out = torch.cat((out, x), dim=2)
-        return out.permute(1, 0, 2, 3, 4)
-
-
-class CrossShiftNet(nn.Module):
-
-    def __init__(self, in_channels=256, out_channels=256, out_norm_cfg=None):
-        super(CrossShiftNet, self).__init__()
-        self.in_channels = in_channels
-        self.out_channels = out_channels
-        self.spatialContext = SpatialBranch(self.out_channels,
-                                            self.out_channels)
-        self.scaleContext = ScaleBranch(self.out_channels, self.out_channels)
-        self.msm = ScaleShift(self.in_channels, self.in_channels, out_norm_cfg)
-
-    def forward(self, inputs):
-        feats = []
-        size = inputs[1].size()[2:]
-        feats.append((F.adaptive_max_pool2d(inputs[0],
-                                            output_size=size)).unsqueeze(1))
-        for i in range(1, 5):
-            feat = F.interpolate(inputs[i], size=size, mode='bilinear')
-            feats.append(feat.unsqueeze(1))  # B*1*C*H*W
-        feats = torch.cat(feats, dim=1)  # B*5*C*H*W
-        feats = self.msm(feats)
-        out = feats.permute(
-            1, 0, 2, 3,
-            4) + self.spatialContext(feats) + self.scaleContext(feats)
-        inputs[0] = inputs[0] + F.interpolate(
-            out[0], size=inputs[0].size()[2:], mode='bilinear')
-        for i in range(1, 5):
-            size = inputs[i].size()[2:]
-            inputs[i] = inputs[i] + F.adaptive_max_pool2d(
-                out[i], output_size=size)
-        return inputs
 
 
 class RCFPN(nn.Module):
@@ -282,7 +156,7 @@ class RCFPN(nn.Module):
             l_conv = ConvModule(
                 in_channels[i],
                 out_channels,
-                kernel_size=3, padding=1, #???
+                kernel_size=1, padding=0, #???
                 norm_cfg=norm_cfg,
                 act_cfg=None)
             self.lateral_convs.append(l_conv)

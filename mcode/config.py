@@ -12,7 +12,7 @@ from .metrics import AverageMeter
 
 # config
 # ===============================================================================
-use_wandb = True
+use_wandb = False
 wandb_key = "d0ee13baa7af4379eff80e68b11cf976bbb8d673"
 wandb_project = "Seg-Uper"
 wandb_entity = "ssl-online"
@@ -31,7 +31,7 @@ test_folder = "/mnt/sdd/nguyen.van.quan/Researchs/Polyp/TestDataset"
 test_images = glob.glob(f'{test_folder}/*/images/*')
 test_masks = glob.glob(f'{test_folder}/*/masks/*')
 
-save_path = "runs/test"
+save_path = "/mnt/sdd/nguyen.van.quan/Researchs/Polyp/runs/test"
 
 image_size = 352
 
@@ -45,7 +45,7 @@ dice_meter = AverageMeter()
 
 n_eps = 50
 save_ckpt_ep = 40
-val_ep = 40
+val_ep = 50
 best = -1.
 
 init_lr = 1e-4

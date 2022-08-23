@@ -42,12 +42,13 @@ class UPerHeadV3(BaseDecodeHead):
             align_corners=self.align_corners)
         self.bottleneck = ConvModule(
             self.in_channels[-1] + len(pool_scales) * self.channels,
-            self.in_channels[-1],
+            self.channels*4,
             3,
             padding=1,
             conv_cfg=self.conv_cfg,
             norm_cfg=self.norm_cfg,
             act_cfg=self.act_cfg)
+        
         
         self.fpn_bottleneck_3 = ConvModule(
             self.channels * 2,
@@ -61,7 +62,7 @@ class UPerHeadV3(BaseDecodeHead):
         
         self.mlp_slow = MLP_OSA(in_channels=self.in_channels, channels=self.channels)
 
-
+        
         self.layer_attn = LayerAttention(
             self.channels,
             groups=len(self.in_channels), la_down_rate=8
@@ -72,6 +73,13 @@ class UPerHeadV3(BaseDecodeHead):
             1,
             self.conv_cfg, self.norm_cfg, self.act_cfg
         )
+        
+        self.cls = nn.ModuleList()
+        for i in range(4):
+            cls_module = nn.Sequential(
+                nn.Dropout2d(0.1),
+                nn.Conv2d(self.channels, 1, kernel_size=1))
+            self.cls.append(cls_module)
 
     def psp_forward(self, inputs):
         """Forward function of PSP module."""
@@ -82,17 +90,18 @@ class UPerHeadV3(BaseDecodeHead):
         output = self.bottleneck(psp_outs)
 
         return output
-    def _forward_feature(self, inputs):
+    
+    def forward(self, inputs):
 
         inputs = self._transform_inputs(inputs)
         inputs[-1] = self.psp_forward(inputs)
-        
+
         # build top-down path 3, 2, 1
         fpn_outs = self.fuse_feature(inputs)
 
-        out = self.mlp_slow(fpn_outs)
-
-
+        outs = self.mlp_slow(fpn_outs)
+        out = outs[-1]
+        
         ## semantic attention 
         fpn_outs_semantic = self.layer_attn(out)
         
@@ -103,11 +112,9 @@ class UPerHeadV3(BaseDecodeHead):
         feats = torch.cat([fpn_outs_edge, fpn_outs_semantic], dim=1)
 
         feats = self.fpn_bottleneck_3(feats)
-        
-        return feats
+        output = self.cls_seg(feats)
+        for i in range(4):
+            outs[i] = self.cls[i](outs[i])
+        return [output, outs[0], outs[1], outs[2], outs[3]]
 
-    def forward(self, inputs):
-        """Forward function."""
-        output = self._forward_feature(inputs)
-        output = self.cls_seg(output)
-        return output
+

@@ -12,7 +12,7 @@ from mmseg.models.builder import build_segmentor
 
 from mcode import ActiveDataset, get_scores, LOGGER, set_seed_everything, set_logging
 from mcode.config import *
-
+from mmseg.models.utils.loss import structure_loss
 
 def full_val(model):
     print("#" * 20)
@@ -46,8 +46,8 @@ def full_val(model):
             gt = np.asarray(gt, np.float32)
             image = image.to(device)
 
-            res = model(image)
-            res = F.interpolate(res, size=gt.shape, mode='bilinear', align_corners=False)
+            res = model(image)[0]
+            # res = F.interpolate(res, size=gt.shape, mode='bilinear', align_corners=False)
             res = res.sigmoid().data.cpu().numpy().squeeze()
             res = (res - res.min()) / (res.max() - res.min() + 1e-8)
             pr = res.round()
@@ -90,7 +90,8 @@ if __name__ == '__main__':
             entity=wandb_entity,
             name=wandb_name,
             dir=wandb_dir,
-            group=wandb_group
+            group=wandb_group,
+            settings=wandb.Settings(code_dir="/mnt/sdd/nguyen.van.quan/Researchs/Polyp/mmseg/models/decode_heads/")
         )
 
     # model
@@ -145,15 +146,16 @@ if __name__ == '__main__':
             n = sample["image"].shape[0]
             x = sample["image"].to(device)
             y = sample["mask"].to(device).to(torch.int64)
-            y_hat = model(x)
-            loss = loss_weights[0] * loss_fns[0](y_hat.squeeze(1), y.squeeze(1).float()) + \
-                   loss_weights[1] * loss_fns[1](y_hat, y)
+            map = model(x)
+            # loss = loss_weights[0] * loss_fns[0](y_hat.squeeze(1), y.squeeze(1).float()) + \
+            #        loss_weights[1] * loss_fns[1](y_hat, y)
+            loss = structure_loss(map[0], y) + structure_loss(map[1], y) + structure_loss(map[2], y) + structure_loss(map[3], y) + structure_loss(map[4], y)
             loss.backward()
 
             if batch_id % grad_accumulate_rate == 0:
                 optimizer.step()
                 optimizer.zero_grad()
-            y_hat_mask = y_hat.sigmoid()
+            y_hat_mask = map[0].sigmoid()
             pred_mask = (y_hat_mask > 0.5).float()
 
             train_loss_meter.update(loss.item(), n)
