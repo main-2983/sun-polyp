@@ -29,7 +29,7 @@ def full_val(model):
         y_test = glob.glob('{}/masks/*'.format(data_path))
         y_test.sort()
 
-        test_dataset = ActiveDataset(X_test, y_test, transform=val_transform)
+        test_dataset = ActiveDataset(X_test, y_test, transform_list=val_transform)
         test_loader = torch.utils.data.DataLoader(
             test_dataset,
             batch_size=1,
@@ -102,14 +102,12 @@ if __name__ == '__main__':
     train_dataset = ActiveDataset(
         train_images,
         train_masks,
-        trainsize=image_size,
-        transform=train_transform
+        transform_list=train_transform
     )
     val_dataset = ActiveDataset(
         test_images,
         test_masks,
-        trainsize=image_size,
-        transform=val_transform
+        transform_list=val_transform
     )
 
     set_logging("Polyp")
