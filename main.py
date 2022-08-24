@@ -4,6 +4,7 @@ from tabulate import tabulate
 import logging
 import os
 
+import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 import numpy as np
@@ -29,7 +30,7 @@ def full_val(model):
         y_test = glob.glob('{}/masks/*'.format(data_path))
         y_test.sort()
 
-        test_dataset = ActiveDataset(X_test, y_test, transform_list=val_transform)
+        test_dataset = ActiveDataset(X_test, y_test, transform=val_transform)
         test_loader = torch.utils.data.DataLoader(
             test_dataset,
             batch_size=1,
@@ -102,12 +103,14 @@ if __name__ == '__main__':
     train_dataset = ActiveDataset(
         train_images,
         train_masks,
-        transform_list=train_transform
+        trainsize=image_size,
+        transform=train_transform
     )
     val_dataset = ActiveDataset(
         test_images,
         test_masks,
-        transform_list=val_transform
+        trainsize=image_size,
+        transform=val_transform
     )
 
     set_logging("Polyp")
@@ -143,15 +146,19 @@ if __name__ == '__main__':
             n = sample["image"].shape[0]
             x = sample["image"].to(device)
             y = sample["mask"].to(device).to(torch.int64)
-            y_hat = model(x)
-            loss = loss_weights[0] * loss_fns[0](y_hat.squeeze(1), y.squeeze(1).float()) + \
-                   loss_weights[1] * loss_fns[1](y_hat, y)
-            loss.backward()
+            y_hats = model(x)
+            losses = []
+            for y_hat in y_hats:
+                loss = loss_weights[0] * loss_fns[0](y_hat.squeeze(1), y.squeeze(1).float()) + \
+                       loss_weights[1] * loss_fns[1](y_hat, y)
+                losses.append(loss)
+            losses = sum(_loss for _loss in losses)
+            losses.backward()
 
             if batch_id % grad_accumulate_rate == 0:
                 optimizer.step()
                 optimizer.zero_grad()
-            y_hat_mask = y_hat.sigmoid()
+            y_hat_mask = y_hats[0].sigmoid()
             pred_mask = (y_hat_mask > 0.5).float()
 
             train_loss_meter.update(loss.item(), n)
