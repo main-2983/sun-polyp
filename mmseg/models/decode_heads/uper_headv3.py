@@ -42,7 +42,7 @@ class UPerHeadV3(BaseDecodeHead):
             align_corners=self.align_corners)
         self.bottleneck = ConvModule(
             self.in_channels[-1] + len(pool_scales) * self.channels,
-            self.channels*4,
+            self.channels,
             3,
             padding=1,
             conv_cfg=self.conv_cfg,
@@ -57,7 +57,7 @@ class UPerHeadV3(BaseDecodeHead):
 
 
         # self.fuse_feature = BiFPN(self.in_channels, self.channels)
-        self.fuse_feature = RCFPN(self.in_channels, self.channels, 4)
+        self.fuse_feature = RCFPN(self.in_channels, self.channels, 5)
         
         
         self.mlp_slow = MLP_OSA(in_channels=self.in_channels, channels=self.channels)
@@ -94,24 +94,24 @@ class UPerHeadV3(BaseDecodeHead):
     def forward(self, inputs):
 
         inputs = self._transform_inputs(inputs)
-        inputs[-1] = self.psp_forward(inputs)
+        inputs.append(self.psp_forward(inputs))
 
         # build top-down path 3, 2, 1
         fpn_outs = self.fuse_feature(inputs)
-
-        outs = self.mlp_slow(fpn_outs)
+      
+        outs = self.mlp_slow(fpn_outs[:-1])
         out = outs[-1]
         
         ## semantic attention 
-        fpn_outs_semantic = self.layer_attn(out)
+        # fpn_outs_semantic = self.layer_attn(out)
         
         ## edge attention
-        fpn_outs_edge = self.reverse_attn(out, out)
+        feats = self.reverse_attn(out, out)
 
 
-        feats = torch.cat([fpn_outs_edge, fpn_outs_semantic], dim=1)
+        # feats = torch.cat([fpn_outs_edge, fpn_outs_semantic], dim=1)
 
-        feats = self.fpn_bottleneck_3(feats)
+        # feats = self.fpn_bottleneck_3(fpn_outs_edge)
         output = self.cls_seg(feats)
         for i in range(4):
             outs[i] = self.cls[i](outs[i])

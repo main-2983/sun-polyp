@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from mmcv.cnn import ConvModule
+from .attention import *
 
 from mmseg.ops import resize
 from mmseg.models.utils import SELayer
@@ -19,11 +20,10 @@ class MLP_OSA(nn.Module):
         self.channels = channels
         num_inputs = len(self.in_channels)
 
-        self.convs = nn.ModuleList()
-        for i in range(num_inputs):
-            convs = nn.Sequential(nn.Conv2d(self.channels, self.channels, 3, padding=1, bias=False), nn.ReLU(),
-                                  nn.Conv2d(self.channels, self.channels, 3, padding=1, bias=False), nn.ReLU())
-            self.convs.append(convs)
+        # self.convs = nn.ModuleList()
+        # for i in range(num_inputs):
+        #     convs = nn.Sequential(nn.Conv2d(self.channels, self.channels, 3, padding=1, bias=False), nn.ReLU())
+        #     self.convs.append(convs)
 
         self.linear_projections = nn.ModuleList()
         for i in range(num_inputs - 1):
@@ -39,19 +39,24 @@ class MLP_OSA(nn.Module):
                 )
             )
         
-        self.aa_module = AA_kernel(self.channels * num_inputs, self.channels * num_inputs)
+        self.aa_module = AA_kernel(self.channels, self.channels)
         self.fusion_conv = ConvModule(
             in_channels=self.channels * num_inputs,
             out_channels=self.channels,
             kernel_size=3, padding=1,
             norm_cfg=None)
+        
+        self.layer_attn = LayerAttention(
+            self.channels * num_inputs,
+            groups=num_inputs, la_down_rate=4
+        )
 
     def forward(self, inputs):
         # Receive 4 stage backbone feature map: 1/4, 1/8, 1/16, 1/32
         _inputs = []
         for idx in range(len(inputs)):
             x = inputs[idx]
-            x = self.convs[idx](x)
+            # x = self.convs[idx](x)
             _inputs.append(
                 resize(
                     input=x,
@@ -80,13 +85,15 @@ class MLP_OSA(nn.Module):
                 x = x1 + x2
             _out = linear_prj(x)
             outs.append(_out)
-
+            
         out = torch.cat(outs, dim=1)
-        out = self.aa_module(out)
+        out = self.layer_attn(out)
         out = self.fusion_conv(out)
+        aa_atten = self.aa_module(out)
+        out  = out + aa_atten
 
         # # perform identity mapping
-        out = outs[-1] + out
+        # out = outs[-1] + out + outs[0] ????
         outs.append(out)
 
         return outs

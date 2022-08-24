@@ -122,12 +122,12 @@ class LayerAttention(nn.Module):
         self.in_channels = in_channels
         self.groups = groups
         self.layer_attention = nn.Sequential(
-            nn.Conv2d(self.in_channels, self.in_channels // la_down_rate, kernel_size=3, padding=1),
+            nn.Conv2d(self.in_channels, self.in_channels // la_down_rate, kernel_size=1, padding=0),
             nn.ReLU(inplace=True),
             nn.Conv2d(
                 self.in_channels // la_down_rate,
                 self.groups,
-                1
+                kernel_size=3, padding=1
             ),
             nn.Sigmoid()
         )
@@ -161,7 +161,7 @@ class ReverseAttention(nn.Module):
         self.in_channels = in_channels
         self.fpn_bottleneck = ConvModule(
             self.in_channels, self.out_channels,
-            kernel_size=3, padding=1, conv_cfg=conv_cfg, norm_cfg=norm_cfg, act_cfg=act_cfg)
+            kernel_size=1, padding=0, conv_cfg=conv_cfg, norm_cfg=norm_cfg, act_cfg=act_cfg)
         
         self.ra_conv = ConvModule(
             self.in_channels , self.in_channels, kernel_size=3, padding=1, conv_cfg=conv_cfg, norm_cfg=norm_cfg, act_cfg=act_cfg

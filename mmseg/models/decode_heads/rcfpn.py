@@ -156,43 +156,50 @@ class RCFPN(nn.Module):
             l_conv = ConvModule(
                 in_channels[i],
                 out_channels,
-                kernel_size=1, padding=0, #???
+                kernel_size=1, padding=0,
                 norm_cfg=norm_cfg,
                 act_cfg=None)
             self.lateral_convs.append(l_conv)
 
 
 
+
         self.RevFP = nn.ModuleDict()
-        self.RevFP['p6'] = FusionNode(
+        self.RevFP['p7'] = FusionNode(
             in_channels=out_channels,
             out_channels=out_channels,
             out_conv_cfg=out_conv_cfg,
             out_norm_cfg=norm_cfg,
             op_num=2,
-            upsample_attn=False,)
+            upsample_attn=False)
 
+        self.RevFP['p6'] = FusionNode(
+            in_channels=out_channels,
+            out_channels=out_channels,
+            out_conv_cfg=out_conv_cfg,
+            out_norm_cfg=norm_cfg,
+            op_num=3)
 
         self.RevFP['p5'] = FusionNode(
             in_channels=out_channels,
             out_channels=out_channels,
             out_conv_cfg=out_conv_cfg,
             out_norm_cfg=norm_cfg,
-            op_num=3,upsample_attn=False,) #???
+            op_num=3)
 
         self.RevFP['p4'] = FusionNode(
             in_channels=out_channels,
             out_channels=out_channels,
             out_conv_cfg=out_conv_cfg,
             out_norm_cfg=norm_cfg,
-            op_num=3,upsample_attn=False,) #???
+            op_num=3)
 
         self.RevFP['p3'] = FusionNode(
             in_channels=out_channels,
             out_channels=out_channels,
             out_conv_cfg=out_conv_cfg,
             out_norm_cfg=norm_cfg,
-            op_num=2,upsample_attn=False,) #???
+            op_num=2)
         
             
     def init_weights(self):
@@ -209,12 +216,12 @@ class RCFPN(nn.Module):
             for i, lateral_conv in enumerate(self.lateral_convs)
         ]
         c3, c4, c5, c6 = feats
-        # c6 = inputs[-1]
-        
+        c7 = inputs[-1]        
         # fixed order 
         p3 = self.RevFP['p3']([c3, c4], out_size=c3.shape[-2:])
         p4 = self.RevFP['p4']([c4, c5, p3], out_size=c4.shape[-2:])
         p5 = self.RevFP['p5']([c5, c6, p4], out_size=c5.shape[-2:])
-        p6 = self.RevFP['p6']([c6, p5], out_size=c6.shape[-2:])
+        p6 = self.RevFP['p6']([c6, c7, p5], out_size=c6.shape[-2:])
+        p7 = self.RevFP['p7']([c7, p6], out_size=c7.shape[-2:])
 
-        return [p3, p4, p5, p6]
+        return [p3, p4, p5, p6, p7]

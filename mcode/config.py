@@ -12,7 +12,7 @@ from .metrics import AverageMeter
 
 # config
 # ===============================================================================
-use_wandb = False
+use_wandb = True
 wandb_key = "d0ee13baa7af4379eff80e68b11cf976bbb8d673"
 wandb_project = "Seg-Uper"
 wandb_entity = "ssl-online"
@@ -45,7 +45,7 @@ dice_meter = AverageMeter()
 
 n_eps = 50
 save_ckpt_ep = 40
-val_ep = 50
+val_ep = 40
 best = -1.
 
 init_lr = 1e-4
