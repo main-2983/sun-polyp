@@ -35,7 +35,6 @@ class ActiveDataset(Dataset):
 
             image = torch.as_tensor(np.array(image))
             mask = torch.as_tensor(np.array(mask))
-            return image.float(), mask.float()
 
         sample = dict(image=image, mask=mask, image_path=self.images[index], mask_path=self.masks[index])
 
