@@ -16,8 +16,8 @@ use_wandb = False
 wandb_key = "d0ee13baa7af4379eff80e68b11cf976bbb8d673"
 wandb_project = "Seg-Uper"
 wandb_entity = "ssl-online"
-wandb_name = "TestGroup (2)"
-wandb_group = None
+wandb_name = "RFP (1)"
+wandb_group = "RFP"
 wandb_dir = "./wandb"
 
 seed = 2022
@@ -35,7 +35,7 @@ save_path = "runs/test"
 
 image_size = 352
 
-bs = 16
+bs = 1
 bs_val = 2
 grad_accumulate_rate = 1
 
@@ -56,45 +56,23 @@ bce_loss = smp.losses.SoftBCEWithLogitsLoss()
 loss_fns = [bce_loss, dice_loss]
 loss_weights = [0.8, 0.2]
 
-train_transform = [
-    {'Resize':{
-        'size': [352, 352]
-    }},
-    {'RandomScaleCrop':{
-        'range': [0.75, 1.25]
-    }},
-    {'RandomFlip':{
-        'lr': True,
-        'ud': True
-    }},
-    {'RandomRotate':{
-        'range': [0, 359]
-    }},
-    {'RandomImageEnhance':{
-        'methods': ['contrast', 'sharpness', 'brightness']
-    }},
-    {'RandomDilationErosion':{
-        'kernel_range': [2, 5]
-    }},
-    {'ToNumpy': None},
-    {'Normalize':{
-        'mean': [0.485, 0.456, 0.406],
-        'std': [0.229, 0.224, 0.225]
-    }},
-    {'ToTensor': None}
-]
+train_transform = A.Compose([
+    A.HorizontalFlip(p=0.5),
+    A.VerticalFlip(p=0.5),
+    A.RandomGamma (gamma_limit=(50, 150), eps=None, always_apply=False, p=0.5),
+    A.RandomBrightness(p=0.3),
+    A.RGBShift(p=0.3, r_shift_limit=5, g_shift_limit=5, b_shift_limit=5),
+    A.OneOf([A.Blur(), A.GaussianBlur(), A.GlassBlur(), A.MotionBlur(), A.GaussNoise(), A.Sharpen(), A.MedianBlur(), A.MultiplicativeNoise()]),
+    A.Cutout(p=0.3, max_h_size=25, max_w_size=25, fill_value=255),
+    A.ShiftScaleRotate(p=0.3, border_mode=cv2.BORDER_CONSTANT, shift_limit=0.15, scale_limit=0.11),
+    A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+    ToTensorV2(),
+])
 
-val_transform = [
-    {'Resize':{
-        'size': [352, 352]
-    }},
-    {'ToNumpy': None},
-    {'Normalize':{
-        'mean': [0.485, 0.456, 0.406],
-        'std': [0.229, 0.224, 0.225]
-    }},
-    {'ToTensor': None}
-]
+val_transform = A.Compose([
+    A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+    ToTensorV2(),
+])
 
 pretrained = "/mnt/sdd/nguyen.van.quan/BKAI-kaggle/pretrained/mit_b1_mmseg.pth"
 model_cfg = dict(
@@ -114,10 +92,9 @@ model_cfg = dict(
         drop_rate=0.0,
         attn_drop_rate=0.0,
         drop_path_rate=0.1,
-        pretrained=pretrained),
+        pretrained=None),
     decode_head=dict(
-        type='MLP_OSAHead_v5',
-        ops='cat',
+        type='SSFormerHead',
         in_channels=[64, 128, 320, 512],
         in_index=[0, 1, 2, 3],
         channels=256,

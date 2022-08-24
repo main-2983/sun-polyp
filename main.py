@@ -29,7 +29,7 @@ def full_val(model):
         y_test = glob.glob('{}/masks/*'.format(data_path))
         y_test.sort()
 
-        test_dataset = ActiveDataset(X_test, y_test, transform_list=val_transform)
+        test_dataset = ActiveDataset(X_test, y_test, transform=val_transform)
         test_loader = torch.utils.data.DataLoader(
             test_dataset,
             batch_size=1,
@@ -46,8 +46,7 @@ def full_val(model):
             gt = np.asarray(gt, np.float32)
             image = image.to(device)
 
-            res = model(image)
-            res = F.interpolate(res, size=gt.shape, mode='bilinear', align_corners=False)
+            res = model(image)[0]
             res = res.sigmoid().data.cpu().numpy().squeeze()
             res = (res - res.min()) / (res.max() - res.min() + 1e-8)
             pr = res.round()
@@ -102,12 +101,14 @@ if __name__ == '__main__':
     train_dataset = ActiveDataset(
         train_images,
         train_masks,
-        transform_list=train_transform
+        trainsize=image_size,
+        transform=train_transform
     )
     val_dataset = ActiveDataset(
         test_images,
         test_masks,
-        transform_list=val_transform
+        trainsize=image_size,
+        transform=val_transform
     )
 
     set_logging("Polyp")
