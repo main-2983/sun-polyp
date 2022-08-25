@@ -89,8 +89,8 @@ class MLP_OSA(nn.Module):
         out = torch.cat(outs, dim=1)
         out = self.layer_attn(out)
         out = self.fusion_conv(out)
-        aa_atten = self.aa_module(out)
-        out  = out + aa_atten
+        out = outs[-1] + out
+        out = self.aa_module(out) + out
 
         # # perform identity mapping
         # out = outs[-1] + out + outs[0] ????

@@ -9,10 +9,11 @@ import cv2
 from .utils import select_device
 from .metrics import AverageMeter
 
-
+import imgaug
+imgaug.random.seed(123)
 # config
 # ===============================================================================
-use_wandb = True
+use_wandb = False
 wandb_key = "d0ee13baa7af4379eff80e68b11cf976bbb8d673"
 wandb_project = "Seg-Uper"
 wandb_entity = "ssl-online"
@@ -21,7 +22,7 @@ wandb_group = "RFP"
 wandb_dir = "./wandb"
 
 seed = 2022
-device = "cuda:1" if torch.cuda.is_available() else 'cpu'
+device = "cuda:0" if torch.cuda.is_available() else 'cpu'
 num_workers = 8
 
 train_images = glob.glob('/mnt/sdd/nguyen.van.quan/Researchs/Polyp/TrainDataset/image/*')

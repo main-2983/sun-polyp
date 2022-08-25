@@ -23,7 +23,6 @@ class AA_kernel(nn.Module):
     def forward(self, x):
         x = self.conv0(x)
         x = self.conv1(x)
-
         Hx = self.Hattn(x)
         Wx = self.Wattn(Hx)
 

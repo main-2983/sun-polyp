@@ -34,7 +34,6 @@ class self_attn(nn.Module):
             axis *= width
 
         view = (batch_size, -1, axis)
-
         projected_query = self.query_conv(x).view(*view).permute(0, 2, 1)
         projected_key = self.key_conv(x).view(*view)
 
