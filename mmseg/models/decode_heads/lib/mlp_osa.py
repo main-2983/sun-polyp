@@ -56,7 +56,6 @@ class MLP_OSA(nn.Module):
         _inputs = []
         for idx in range(len(inputs)):
             x = inputs[idx]
-            # x = self.convs[idx](x)
             _inputs.append(
                 resize(
                     input=x,
@@ -89,11 +88,10 @@ class MLP_OSA(nn.Module):
         out = torch.cat(outs, dim=1)
         out = self.layer_attn(out)
         out = self.fusion_conv(out)
-        out = outs[-1] + out
-        out = self.aa_module(out) + out
-
-        # # perform identity mapping
-        # out = outs[-1] + out + outs[0] ????
+        aa_atten = self.aa_module(out)
+        # out  = outs[-1]  + aa_atten
+        out  = out  + aa_atten
+        
         outs.append(out)
 
         return outs

@@ -13,11 +13,11 @@ import imgaug
 imgaug.random.seed(123)
 # config
 # ===============================================================================
-use_wandb = False
+use_wandb = True
 wandb_key = "d0ee13baa7af4379eff80e68b11cf976bbb8d673"
 wandb_project = "Seg-Uper"
 wandb_entity = "ssl-online"
-wandb_name = "RFP (1)"
+wandb_name = "RFP (5)"
 wandb_group = "RFP"
 wandb_dir = "./wandb"
 
