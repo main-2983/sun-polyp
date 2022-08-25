@@ -117,7 +117,6 @@ mmseg/.mim
 logs/
 configs/
 demo/
-mmseg/models
 
 # Pytorch
 *.pth
