@@ -1,14 +1,11 @@
-# Config model
-Config model in `mcode/model.py`  
-How to config:  
-+ `pretrained`: path to pretrain checkpoint
-+ Please change `pretrained=None` to `pretrained=pretrained` in backbone
-+ Config decode head `type` to head of your choice
-
-# Training
-## Config in training
-See `config` section in `main.py`
+# Config
+Config everything in `mcode/config.py`  
 What to config?
++ Model:
+    + Follow mmseg config
+    + `pretrained`: path to ImageNet pretrained MiT backbone
+    + Please change `pretrained` in `backbone` to `pretrained=pretrained`
+    + Config model head to head of your choice
 + Wandb:
   + `use_wandb`: True, False if debug
   + `wandb_key`: Please use your wandb authorize key

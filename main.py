@@ -47,8 +47,7 @@ def full_val(model):
             gt = np.asarray(gt, np.float32)
             image = image.to(device)
 
-            res = model(image)
-            res = F.interpolate(res, size=gt.shape, mode='bilinear', align_corners=False)
+            res = model(image)[0]
             res = res.sigmoid().data.cpu().numpy().squeeze()
             res = (res - res.min()) / (res.max() - res.min() + 1e-8)
             pr = res.round()

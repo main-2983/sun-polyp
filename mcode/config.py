@@ -13,11 +13,11 @@ from .metrics import AverageMeter
 # config
 # ===============================================================================
 use_wandb = False
-wandb_key = "d0ee13baa7af4379eff80e68b11cf976bbb8d673"
+wandb_key = None
 wandb_project = "Seg-Uper"
 wandb_entity = "ssl-online"
-wandb_name = "TestGroup (2)"
-wandb_group = None
+wandb_name = "RFP (1)"
+wandb_group = "RFP"
 wandb_dir = "./wandb"
 
 seed = 2022
@@ -73,7 +73,6 @@ val_transform = A.Compose([
     A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
     ToTensorV2(),
 ])
-
 
 pretrained = "/mnt/sdd/nguyen.van.quan/BKAI-kaggle/pretrained/mit_b1_mmseg.pth"
 model_cfg = dict(
