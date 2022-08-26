@@ -91,6 +91,7 @@ class MLP_OSA(nn.Module):
         aa_atten = self.aa_module(out)
         # out  = outs[-1]  + aa_atten
         out  = out  + aa_atten
+        out += outs[-1]
         
         outs.append(out)
 
