@@ -8,7 +8,7 @@ import cv2
 
 from .utils import select_device
 from .metrics import AverageMeter
-
+from .custom_transform import DilationAndErosion
 import imgaug
 imgaug.random.seed(123)
 # config
@@ -18,11 +18,11 @@ wandb_key = "d0ee13baa7af4379eff80e68b11cf976bbb8d673"
 wandb_project = "Seg-Uper"
 wandb_entity = "ssl-online"
 wandb_name = "RFP (5)"
-wandb_group = "RFP"
+wandb_group = "RFP B2"
 wandb_dir = "./wandb"
 
 seed = 2022
-device = "cuda:0" if torch.cuda.is_available() else 'cpu'
+device = "cuda:1" if torch.cuda.is_available() else 'cpu'
 num_workers = 8
 
 train_images = glob.glob('/mnt/sdd/nguyen.van.quan/Researchs/Polyp/TrainDataset/image/*')
@@ -62,6 +62,7 @@ train_transform = A.Compose([
     A.VerticalFlip(p=0.5),
     A.RandomGamma (gamma_limit=(50, 150), eps=None, always_apply=False, p=0.5),
     A.RandomBrightness(p=0.3),
+    DilationAndErosion(),
     A.RGBShift(p=0.3, r_shift_limit=5, g_shift_limit=5, b_shift_limit=5),
     A.OneOf([A.Blur(), A.GaussianBlur(), A.GlassBlur(), A.MotionBlur(), A.GaussNoise(), A.Sharpen(), A.MedianBlur(), A.MultiplicativeNoise()]),
     A.Cutout(p=0.3, max_h_size=25, max_w_size=25, fill_value=255),

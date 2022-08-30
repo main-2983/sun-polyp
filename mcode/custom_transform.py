@@ -4,7 +4,7 @@ import cv2
 import torch
 import torch.nn.functional as F
 from PIL import Image, ImageOps, ImageFilter, ImageEnhance
-
+from albumentations.core.transforms_interface import ImageOnlyTransform, DualTransform
 class Resize:
     def __init__(self, size):
         self.size = size
@@ -106,24 +106,7 @@ class Random_image_enhance:
 
         return sample
 
-class Random_dilation_erosion:
-    def __init__(self, kernel_range=[2, 5]):
-        self.kernel_range = kernel_range
 
-    def __call__(self, sample):
-        gt = sample['gt']
-        gt = np.array(gt)
-        key = np.random.random()
-        # kernel = np.ones(tuple([np.random.randint(*self.kernel_range)]) * 2, dtype=np.uint8)
-        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (np.random.randint(*self.kernel_range), ) * 2)
-        if key < 1/3:
-            gt = cv2.dilate(gt, kernel)
-        elif 1/3 <= key < 2/3:
-            gt = cv2.erode(gt, kernel)
-
-        sample['gt'] = Image.fromarray(gt)
-
-        return sample
 
 class Random_gaussian_blur:
     def __init__(self):
@@ -181,3 +164,30 @@ class Totensor:
         sample['gt'] = gt
 
         return sample
+    
+    
+
+
+class random_dilation_erosion:
+    def __init__(self, kernel_range=[2, 5]):
+        self.kernel_range = kernel_range
+
+    def __call__(self, gt):
+        
+        gt = np.array(gt)
+        key = np.random.random()
+        # kernel = np.ones(tuple([np.random.randint(*self.kernel_range)]) * 2, dtype=np.uint8)
+        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (np.random.randint(*self.kernel_range), ) * 2)
+        if key < 1/3:
+            gt = cv2.dilate(gt, kernel)
+        elif 1/3 <= key < 2/3:
+            gt = cv2.erode(gt, kernel)
+
+        return gt
+
+
+class DilationAndErosion(DualTransform):
+    def apply_to_mask(self, img, **params):
+        return random_dilation_erosion()(img)
+    def apply(self, img, **params) -> np.ndarray:
+        return np.array(img)
