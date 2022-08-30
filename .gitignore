@@ -118,6 +118,7 @@ logs/
 configs/
 demo/
 mmseg/
+mcode
 
 # Pytorch
 *.pth
