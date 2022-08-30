@@ -4,6 +4,7 @@ from tabulate import tabulate
 import logging
 import os
 
+import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 import numpy as np
@@ -144,15 +145,19 @@ if __name__ == '__main__':
             n = sample["image"].shape[0]
             x = sample["image"].to(device)
             y = sample["mask"].to(device).to(torch.int64)
-            y_hat = model(x)
-            loss = loss_weights[0] * loss_fns[0](y_hat.squeeze(1), y.squeeze(1).float()) + \
-                   loss_weights[1] * loss_fns[1](y_hat, y)
-            loss.backward()
+            y_hats = model(x)
+            losses = []
+            for y_hat in y_hats:
+                loss = loss_weights[0] * loss_fns[0](y_hat.squeeze(1), y.squeeze(1).float()) + \
+                       loss_weights[1] * loss_fns[1](y_hat, y)
+                losses.append(loss)
+            losses = sum(_loss for _loss in losses)
+            losses.backward()
 
             if batch_id % grad_accumulate_rate == 0:
                 optimizer.step()
                 optimizer.zero_grad()
-            y_hat_mask = y_hat.sigmoid()
+            y_hat_mask = y_hats[0].sigmoid()
             pred_mask = (y_hat_mask > 0.5).float()
 
             train_loss_meter.update(loss.item(), n)
