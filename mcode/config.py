@@ -102,14 +102,7 @@ model_cfg = dict(
         num_classes=1,
         norm_cfg=dict(type='BN', requires_grad=True),
         align_corners=False,
-        loss_decode=dict(type='CrossEntropyLoss', use_sigmoid=True, loss_weight=1.0)),
-    auxiliary_head=dict(
-        type='FCNHead',
-        in_channels=512,
-        channels=256,
-        in_index=3,
-        num_classes=1
-    )
+        loss_decode=dict(type='CrossEntropyLoss', use_sigmoid=True, loss_weight=1.0))
 )
 
 # ===============================================================================
