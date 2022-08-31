@@ -12,20 +12,20 @@ from .metrics import AverageMeter
 
 # config
 # ===============================================================================
-use_wandb = False
-wandb_key = "d0ee13baa7af4379eff80e68b11cf976bbb8d673"
+use_wandb = True
+wandb_key = None
 wandb_project = "Seg-Uper"
 wandb_entity = "ssl-online"
-wandb_name = "TestGroup (2)"
-wandb_group = None
+wandb_name = "B3-v5_defaultAug (1)"
+wandb_group = "B3-v5_defaultAug"
 wandb_dir = "./wandb"
 
 seed = 2022
 device = select_device("cuda:0" if torch.cuda.is_available() else 'cpu')
 num_workers = 4
 
-train_images = glob.glob('../Dataset/polyp/TrainDataset/images/*')
-train_masks = glob.glob('../Dataset/polyp/TrainDataset/masks/*')
+train_images = glob.glob('../Dataset/polyp/TrainDataset/image/*')
+train_masks = glob.glob('../Dataset/polyp/TrainDataset/mask/*')
 
 test_folder = "../Dataset/polyp/TestDataset"
 test_images = glob.glob(f'{test_folder}/*/images/*')
@@ -104,7 +104,7 @@ model_cfg = dict(
         in_channels=3,
         embed_dims=64,
         num_stages=4,
-        num_layers=[2, 2, 2, 2],
+        num_layers=[3, 4, 18, 3],
         num_heads=[1, 2, 5, 8],
         patch_sizes=[7, 3, 3, 3],
         sr_ratios=[8, 4, 2, 1],
@@ -117,7 +117,6 @@ model_cfg = dict(
         pretrained=pretrained),
     decode_head=dict(
         type='MLP_OSAHead_v5',
-        ops='cat',
         in_channels=[64, 128, 320, 512],
         in_index=[0, 1, 2, 3],
         channels=256,
