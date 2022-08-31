@@ -52,8 +52,17 @@ model_cfg = dict(
         loss_decode=dict(type='CrossEntropyLoss', use_sigmoid=True, loss_weight=1.0))
 )
 target_layers = [
-    "model.decode_head.fusion_conv"
+    "model.decode_head.linear_projections[0]"
 ]
+
+
+def reshape_transform(tensor):
+    if tensor.dim() == 4:
+        return tensor
+    b, tokens, c = tensor.shape
+    height, width = int(np.sqrt(tokens)), int(np.sqrt(tokens))
+    return tensor.transpose(1, 2).reshape(b, c, height, width)
+
 
 class SemanticSegmentationTarget:
     """ Gets a binary spatial mask and a category,
@@ -97,10 +106,10 @@ if __name__ == '__main__':
         pred = res.round()
 
     targets = [SemanticSegmentationTarget(pred)]
-    with AblationCAM(model=model,
-                     target_layers=target_layers,
-                     use_cuda=torch.cuda.is_available(),
-                     batch_size=1) as cam:
+    with GradCAM(model=model,
+                 target_layers=target_layers,
+                 use_cuda=torch.cuda.is_available(),
+                 reshape_transform=reshape_transform) as cam:
         grayscale_cam = cam(input_tensor=img,
                             targets=targets)[0, :]
         cam_image = show_cam_on_image(image / 255, grayscale_cam, use_rgb=True, image_weight=0.8)
