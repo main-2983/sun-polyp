@@ -17,7 +17,7 @@ use_wandb = True
 wandb_key = "d0ee13baa7af4379eff80e68b11cf976bbb8d673"
 wandb_project = "Seg-Uper"
 wandb_entity = "ssl-online"
-wandb_name = "RFP (5)"
+wandb_name = "RFP (2)"
 wandb_group = "RFP B3"
 wandb_dir = "./wandb"
 

@@ -4,6 +4,7 @@ import torch
 import numpy as np
 from mmcv.cnn import ConvModule, xavier_init, constant_init
 
+# add polarize attn
 
 class FusionNode(nn.Module):
 

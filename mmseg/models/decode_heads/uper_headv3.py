@@ -16,6 +16,8 @@ from torch import nn
 from .lib.mlp_osa import MLP_OSA
 
 
+# psp feature instead of last input
+
 @HEADS.register_module()
 class UPerHeadV3(BaseDecodeHead):
     """Unified Perceptual Parsing for Scene Understanding.
@@ -63,11 +65,6 @@ class UPerHeadV3(BaseDecodeHead):
         self.mlp_slow = MLP_OSA(in_channels=self.in_channels, channels=self.channels)
 
         
-        self.layer_attn = LayerAttention(
-            self.channels,
-            groups=len(self.in_channels), la_down_rate=8
-        )
-        
         self.reverse_attn = ReverseAttention(
             self.channels,
             1,
@@ -98,23 +95,15 @@ class UPerHeadV3(BaseDecodeHead):
 
         # build top-down path 3, 2, 1
         fpn_outs = self.fuse_feature(inputs)
-      
+        # fpn_outs[-2] = fpn_outs[-1]
         outs = self.mlp_slow(fpn_outs[:-1])
         out = outs[-1]
-        
-        ## semantic attention 
-        # fpn_outs_semantic = self.layer_attn(out)
-        
+
         ## edge attention
         feats = self.reverse_attn(out, out)
 
 
-        # feats = torch.cat([fpn_outs_edge, fpn_outs_semantic], dim=1)
-
-        # feats = self.fpn_bottleneck_3(fpn_outs_edge)
         output = self.cls_seg(feats)
         for i in range(4):
             outs[i] = self.cls[i](outs[i])
         return [output, outs[0], outs[1], outs[2], outs[3]]
-
-
