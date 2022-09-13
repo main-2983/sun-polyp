@@ -18,7 +18,7 @@ wandb_key = "d0ee13baa7af4379eff80e68b11cf976bbb8d673"
 wandb_project = "Seg-Uper"
 wandb_entity = "ssl-online"
 wandb_name = "RFP (2)"
-wandb_group = "RFP B3"
+wandb_group = "RFP B4 5"
 wandb_dir = "./wandb"
 
 seed = 2022
@@ -76,7 +76,7 @@ val_transform = A.Compose([
     ToTensorV2(),
 ])
 
-pretrained = "/mnt/sdd/nguyen.van.quan/Researchs/Polyp/pretrained/mit_b3_mmseg.pth"
+pretrained = "/mnt/sdd/nguyen.van.quan/Researchs/Polyp/pretrained/mit_b4_mmseg.pth"
 model_cfg = dict(
     type='SunSegmentor',
     backbone=dict(
@@ -84,7 +84,7 @@ model_cfg = dict(
         in_channels=3,
         embed_dims=64,
         num_stages=4,
-        num_layers=[3, 4, 18, 3],
+        num_layers=[3, 8, 27, 3],
         num_heads=[1, 2, 5, 8],
         patch_sizes=[7, 3, 3, 3],
         sr_ratios=[8, 4, 2, 1],

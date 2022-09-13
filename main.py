@@ -91,7 +91,8 @@ if __name__ == '__main__':
             name=wandb_name,
             dir=wandb_dir,
             group=wandb_group,
-            settings=wandb.Settings(code_dir="/mnt/sdd/nguyen.van.quan/Researchs/Polyp/mmseg/models/decode_heads/")
+            settings=wandb.Settings(code_dir="/mnt/sdd/nguyen.van.quan/Researchs/Polyp/mmseg/models/decode_heads/"),
+            config={"architecture":"RFP with 5 nodes"}
         )
 
     # model
