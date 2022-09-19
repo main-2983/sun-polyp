@@ -78,20 +78,17 @@ class LAPFormerPPHead(BaseDecodeHead):
             _inputs[1].shape
         )
         outs = [_inputs[-1]]
-        for idx in range(len(_inputs) - 1, 1, -1):
+        for idx in range(len(_inputs) - 2, 0, -1):
             linear_prj = self.linear_projections[idx - 1]
             # cat first 2 from _inputs
-            if idx == len(_inputs) - 1:
-                x1 = _inputs[idx]
-                x2 = _inputs[idx - 1]
+            if idx == len(_inputs) - 2:
+                x1 = _inputs[idx + 1]
+                x2 = _inputs[idx]
             # if not first 2 then cat from prev outs and _inputs
             else:
                 x1 = _out
-                x2 = _inputs[idx - 1]
-            if self.ops == 'cat':
-                x = torch.cat([x1, x2], dim=1)
-            else:
-                x = x1 + x2
+                x2 = _inputs[idx]
+            x = torch.cat([x1, x2], dim=1)
             _out = linear_prj(x)
             outs.append(_out)
 
