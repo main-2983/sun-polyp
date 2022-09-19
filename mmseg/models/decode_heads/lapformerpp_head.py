@@ -48,10 +48,10 @@ class LAPFormerPPHead(BaseDecodeHead):
             )
 
         self.se_module = SELayer(
-            channels=self.channels * num_inputs
+            channels=self.channels * (num_inputs - 1)
         )
         self.fusion_conv = ConvModule(
-            in_channels=self.channels * num_inputs,
+            in_channels=self.channels * (num_inputs - 1),
             out_channels=self.channels,
             kernel_size=1,
             norm_cfg=self.norm_cfg)
