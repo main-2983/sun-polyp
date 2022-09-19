@@ -12,9 +12,10 @@ from mcode import select_device, UnNormalize
 
 
 # config
-ckpt_path = "logs/MLPOSA_v5/model_50.pth"
-image_path = "../Dataset/polyp/TestDataset/CVC-300/images/150.png"
-mask_path = "../Dataset/polyp/TestDataset/CVC-300/masks/150.png"
+AVG = True
+ckpt_path = "../checkpoints/MLP_OSAHead_v2.pth"
+image_path = "../Dataset/polyp/TestDataset/ETIS-LaribPolypDB/images/18.png"
+mask_path = "../Dataset/polyp/TestDataset/ETIS-LaribPolypDB/masks/18.png"
 transform = A.Compose([
     A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
     ToTensorV2(),
@@ -39,8 +40,7 @@ model_cfg = dict(
         drop_path_rate=0.1,
         pretrained=None),
     decode_head=dict(
-        type='MLP_OSAHead_v5',
-        ops='cat',
+        type='MLP_OSAHead_v2',
         in_channels=[64, 128, 320, 512],
         in_index=[0, 1, 2, 3],
         channels=256,
@@ -73,15 +73,22 @@ if __name__ == '__main__':
 
     with torch.no_grad():
         feat_maps = model(img) # this will return feature maps of choice set explicitly by returning in decode_head
+        if AVG:
+            feat_maps = torch.mean(feat_maps, dim=1, keepdim=True)
         feat_maps = feat_maps.cpu().numpy()
     _, c, _, _ = feat_maps.shape
     print(f"Feature maps shape: {feat_maps.shape}")
     nrows, ncols = int(np.sqrt(c)), int(np.sqrt(c))
 
-    fig_size = nrows * 2
-    fig, axes = plt.subplots(nrows, ncols, figsize=(fig_size, fig_size))
-    for i in range(nrows):
-        for j in range(ncols):
-            axes[i, j].imshow(feat_maps[0, i + j, :, :])
-            axes[i, j].axis('off')
-    plt.savefig("test5.jpg")
+    if not AVG:
+        fig_size = nrows * 2
+        fig, axes = plt.subplots(nrows, ncols, figsize=(fig_size, fig_size))
+        for i in range(nrows):
+            for j in range(ncols):
+                axes[i, j].imshow(feat_maps[0, i + j, :, :])
+                axes[i, j].axis('off')
+    else:
+        plt.imshow(feat_maps[0, 0])
+        plt.axis('off')
+    plt.savefig("logs/v2/agg(2).png")
+    plt.show()
