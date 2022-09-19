@@ -21,7 +21,7 @@ wandb_group = None
 wandb_dir = "./wandb"
 
 seed = 2022
-device = select_device("cuda:0" if torch.cuda.is_available() else 'cpu')
+device = select_device("0" if torch.cuda.is_available() else 'cpu')
 num_workers = 4
 
 train_images = glob.glob('../Dataset/polyp/TrainDataset/images/*')
@@ -36,7 +36,6 @@ save_path = "runs/test"
 image_size = 352
 
 bs = 16
-bs_val = 2
 grad_accumulate_rate = 1
 
 train_loss_meter = AverageMeter()
@@ -74,7 +73,7 @@ val_transform = A.Compose([
     ToTensorV2(),
 ])
 
-pretrained = "/mnt/sdd/nguyen.van.quan/BKAI-kaggle/pretrained/mit_b1_mmseg.pth"
+pretrained = None
 model_cfg = dict(
     type='SunSegmentor',
     backbone=dict(
@@ -94,7 +93,7 @@ model_cfg = dict(
         drop_path_rate=0.1,
         pretrained=pretrained),
     decode_head=dict(
-        type='MLP_OSAHead_v5',
+        type='LAPFormerPPHead',
         in_channels=[64, 128, 320, 512],
         in_index=[0, 1, 2, 3],
         channels=256,
