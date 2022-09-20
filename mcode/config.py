@@ -62,7 +62,7 @@ train_transform = A.Compose([
     A.VerticalFlip(p=0.5),
     A.RandomGamma (gamma_limit=(50, 150), eps=None, always_apply=False, p=0.5),
     A.RandomBrightness(p=0.3),
-    DilationAndErosion(),
+    # DilationAndErosion(),
     A.RGBShift(p=0.3, r_shift_limit=5, g_shift_limit=5, b_shift_limit=5),
     A.OneOf([A.Blur(), A.GaussianBlur(), A.GlassBlur(), A.MotionBlur(), A.GaussNoise(), A.Sharpen(), A.MedianBlur(), A.MultiplicativeNoise()]),
     A.Cutout(p=0.3, max_h_size=25, max_w_size=25, fill_value=255),
@@ -76,7 +76,7 @@ val_transform = A.Compose([
     ToTensorV2(),
 ])
 
-pretrained = "/mnt/sdd/nguyen.van.quan/Researchs/Polyp/pretrained/mit_b4_mmseg.pth"
+pretrained = "/mnt/sdd/nguyen.van.quan/Researchs/Polyp/pretrained/mit_b1_mmseg.pth"
 model_cfg = dict(
     type='SunSegmentor',
     backbone=dict(
@@ -84,7 +84,7 @@ model_cfg = dict(
         in_channels=3,
         embed_dims=64,
         num_stages=4,
-        num_layers=[3, 8, 27, 3],
+        num_layers=[2, 2, 2, 2],
         num_heads=[1, 2, 5, 8],
         patch_sizes=[7, 3, 3, 3],
         sr_ratios=[8, 4, 2, 1],
