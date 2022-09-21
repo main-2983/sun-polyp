@@ -415,7 +415,7 @@ class ELAPFormerHead(BaseDecodeHead):
         for i in range(num_inputs - 1):
             self.linear_projections.append(
                 ConvModule(
-                    in_channels=self.channels * 2 if self.ops == 'cat' else self.channels,
+                    in_channels=self.channels * 2,
                     out_channels=self.channels,
                     kernel_size=1,
                     stride=1,
