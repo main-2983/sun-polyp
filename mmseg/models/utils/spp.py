@@ -223,3 +223,65 @@ class CSPSPPF(nn.Module):
         feat_split2 = self.split2(x)
         out = self.out_conv(torch.cat([feat_split1, feat_split2], dim=1))
         return out
+
+
+class C3SPPF(nn.Module):
+    def __init__(self,
+                 in_channels,
+                 out_channels=None,
+                 ratio=0.5,
+                 kernel_size=5):
+        super(C3SPPF, self).__init__()
+        if out_channels is None:
+            out_channels = in_channels
+        _c = int(in_channels * ratio)
+        self.split1 = ConvModule(
+            in_channels=in_channels,
+            out_channels=_c,
+            kernel_size=1,
+            norm_cfg=dict(
+                type='BN',
+                requires_grad=True
+            )
+        )
+        self.split2 = nn.Sequential(
+            ConvModule(
+                in_channels=in_channels,
+                out_channels=_c,
+                kernel_size=1,
+                norm_cfg=dict(
+                    type='BN',
+                    requires_grad=True
+                )
+            ),
+            SPPF(
+                in_channels=_c,
+                out_channels=_c,
+                kernel_size=kernel_size
+            ),
+            ConvModule(
+                in_channels=_c,
+                out_channels=_c,
+                kernel_size=3,
+                padding=1,
+                norm_cfg=dict(
+                    type='BN',
+                    requires_grad=True
+                )
+            )
+        )
+        self.out_conv = ConvModule(
+            in_channels=_c * 2,
+            out_channels=out_channels,
+            kernel_size=1,
+            norm_cfg=dict(
+                type='BN',
+                requires_grad=True
+            )
+        )
+
+    def forward(self, x):
+        feat_split1 = self.split1(x)
+        feat_split2 = self.split2(x)
+        out = self.out_conv(torch.cat([feat_split1, feat_split2], dim=1))
+        return out
