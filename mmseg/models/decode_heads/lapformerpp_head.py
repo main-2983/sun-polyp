@@ -388,7 +388,7 @@ class LAPFomerPPHead_v4(BaseDecodeHead):
 class ELAPFormerHead(BaseDecodeHead):
     def __init__(self,
                  interpolate_mode='bilinear',
-                 pooling='SPPF'
+                 pooling='SPPF',
                  **kwargs):
         super().__init__(input_transform='multiple_select', **kwargs)
 
@@ -467,10 +467,7 @@ class ELAPFormerHead(BaseDecodeHead):
             else:
                 x1 = _out
                 x2 = _inputs[idx - 1]
-            if self.ops == 'cat':
-                x = torch.cat([x1, x2], dim=1)
-            else:
-                x = x1 + x2
+            x = torch.cat([x1, x2], dim=1)
             _out = linear_prj(x)
             outs.append(_out)
 
