@@ -109,3 +109,36 @@ class MultiScaleConvAttn(nn.Module):
         weight = self.pwconv(weight)
 
         return x * weight
+
+
+class MultiScaleLocalAttn(nn.Module):
+    def __init__(self,
+                 channels):
+        super(MultiScaleLocalAttn, self).__init__()
+        self.dwconv_3 = nn.Conv2d(
+            in_channels=channels,
+            out_channels=channels,
+            kernel_size=3,
+            padding=1,
+            groups=channels
+        )
+        self.dwconv_5 = nn.Conv2d(
+            in_channels=channels,
+            out_channels=channels,
+            kernel_size=5,
+            padding=2,
+            groups=channels
+        )
+        self.pwconv = nn.Conv2d(
+            in_channels=channels,
+            out_channels=channels,
+            kernel_size=1
+        )
+
+    def forward(self, x):
+        weight1 = self.dwconv_3(x)
+        weight2 = self.dwconv_5(x)
+        weight = weight1 + weight2
+        weight = self.pwconv(weight)
+
+        return x * weight

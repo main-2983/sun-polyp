@@ -12,7 +12,7 @@ from .weighted_VA import wVisualAttention
 from .layer_attention import LayerAttention, EfficientLayerAttn
 from .reversed_attention import ReversedAttention
 from .spp import SPP, CSPSPP, SPPF, CSPSPPF, C3SPPF
-from .visual_attention import LargeKernelAttn, MultiScaleConvAttn
+from .visual_attention import LargeKernelAttn, MultiScaleConvAttn, MultiScaleLocalAttn
 
 __all__ = [
     'ResLayer', 'SelfAttentionBlock', 'make_divisible', 'InvertedResidual',
@@ -20,5 +20,5 @@ __all__ = [
     'nchw_to_nlc', 'nlc_to_nchw', 'nchw2nlc2nchw', 'nlc2nchw2nlc',
     'wVisualAttention', 'LayerAttention', 'EfficientSELayer',
     'EfficientLayerAttn', 'GeSELayer', 'SPP', 'CSPSPP', 'SPPF', 'CSPSPPF', 'C3SPPF',
-    'LargeKernelAttn', 'MultiScaleConvAttn'
+    'LargeKernelAttn', 'MultiScaleConvAttn', 'MultiScaleLocalAttn'
 ]
