@@ -130,7 +130,7 @@ class RCFPN(nn.Module):
                  start_level=0,
                  end_level=-1,
                  add_extra_convs=False,
-                 norm_cfg=None,
+                 norm_cfg=dict(type='BN', requires_grad=True),
                  out_conv_cfg=None):
         super(RCFPN, self).__init__()
         assert isinstance(in_channels, list)
@@ -157,7 +157,7 @@ class RCFPN(nn.Module):
             l_conv = ConvModule(
                 in_channels[i],
                 out_channels,
-                kernel_size=1, padding=0,
+                kernel_size=3, padding=1,
                 norm_cfg=norm_cfg,
                 act_cfg=None)
             self.lateral_convs.append(l_conv)

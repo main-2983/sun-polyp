@@ -171,6 +171,7 @@ class ReverseAttention(nn.Module):
         out = -1*(torch.sigmoid(out)) + 1
         out = out.expand(-1, self.in_channels, -1, -1).mul(mul_op)
         out = self.ra_conv(out)
+        out = out + input
         return out
     
 
