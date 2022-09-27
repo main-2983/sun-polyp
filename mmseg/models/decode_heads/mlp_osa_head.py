@@ -634,7 +634,7 @@ class MLP_OSAHead_v5_AG(BaseDecodeHead):
         out = self.fusion_conv(out)
 
         # perform identity mapping
-        outs[-1] = self.AG_final(outs[-1], out)
+        outs[-1] = self.AG_final(out, outs[-1])
         out = outs[-1] + out
 
         out = self.cls_seg(out)
@@ -733,9 +733,9 @@ class MLP_OSAHead_v5_monoAG(BaseDecodeHead):
         out = self.fusion_conv(out)
 
         # perform identity mapping
-        outs[-1] = self.monoAG(outs[-1], out)
+        outs[-1] = self.monoAG(out, outs[-1])
         out = outs[-1] + out
-        
+
         #cls
         out = self.cls_seg(out)
         return out
