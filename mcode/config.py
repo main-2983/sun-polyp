@@ -1,60 +1,47 @@
-import glob
+#config for colab training
 
+import glob
 import torch
 import segmentation_models_pytorch as smp
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
 import cv2
-
 from .utils import select_device
 from .metrics import AverageMeter
-
-
 # config
 # ===============================================================================
 use_wandb = False
-wandb_key = None
+wandb_key = "2f4ae7940e867dd7beff4e96575d58e415404d14"
 wandb_project = "Seg-Uper"
 wandb_entity = "ssl-online"
-wandb_name = "TestGroup (2)"
-wandb_group = None
+wandb_name = "V5_AG (1)"
+wandb_group = "V5_AG"
 wandb_dir = "./wandb"
-
 seed = 2022
 device = select_device("0" if torch.cuda.is_available() else 'cpu')
-num_workers = 4
-
-train_images = glob.glob('../Dataset/polyp/TrainDataset/images/*')
-train_masks = glob.glob('../Dataset/polyp/TrainDataset/masks/*')
-
-test_folder = "../Dataset/polyp/TestDataset"
+num_workers = 8
+train_images = glob.glob('/content/TrainDataset/image/*')
+train_masks = glob.glob('/content/TrainDataset/mask/*')
+test_folder = "/content/TestDataset"
 test_images = glob.glob(f'{test_folder}/*/images/*')
 test_masks = glob.glob(f'{test_folder}/*/masks/*')
-
 save_path = "runs/test"
-
 image_size = 352
-
 bs = 16
 grad_accumulate_rate = 1
-
 train_loss_meter = AverageMeter()
 iou_meter = AverageMeter()
 dice_meter = AverageMeter()
-
 n_eps = 50
 save_ckpt_ep = 40
 val_ep = 40
 best = -1.
-
 init_lr = 1e-4
-
 focal_loss = smp.losses.FocalLoss(smp.losses.BINARY_MODE)
 dice_loss = smp.losses.DiceLoss(smp.losses.BINARY_MODE)
 bce_loss = smp.losses.SoftBCEWithLogitsLoss()
 loss_fns = [bce_loss, dice_loss]
 loss_weights = [0.8, 0.2]
-
 train_transform = A.Compose([
     A.HorizontalFlip(p=0.5),
     A.VerticalFlip(p=0.5),
@@ -67,13 +54,11 @@ train_transform = A.Compose([
     A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
     ToTensorV2(),
 ])
-
 val_transform = A.Compose([
     A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
     ToTensorV2(),
 ])
-
-pretrained = None
+pretrained = "/content/mmseg_pretrained/mit_b1.pth"
 model_cfg = dict(
     type='SunSegmentor',
     backbone=dict(
@@ -93,7 +78,7 @@ model_cfg = dict(
         drop_path_rate=0.1,
         pretrained=pretrained),
     decode_head=dict(
-        type='LAPFormerPPHead',
+        type='MLP_OSAHead_v5_AG',
         in_channels=[64, 128, 320, 512],
         in_index=[0, 1, 2, 3],
         channels=256,
@@ -103,5 +88,4 @@ model_cfg = dict(
         align_corners=False,
         loss_decode=dict(type='CrossEntropyLoss', use_sigmoid=True, loss_weight=1.0))
 )
-
 # ===============================================================================
