@@ -583,7 +583,7 @@ class MLP_OSAHead_v5_AG(BaseDecodeHead):
             out_channels=self.channels,
             kernel_size=1,
             norm_cfg=self.norm_cfg)
-        self.AG = []
+        self.AG = nn.ModuleList()
         self.AG0 = Attention_block(self.channels, self.channels, self.channels)
         self.AG.append(self.AG0)
         self.AG1 = Attention_block(self.channels, self.channels, self.channels)
@@ -789,7 +789,7 @@ class MLP_OSAHead_v5_AG_noLinear(BaseDecodeHead):
             out_channels=self.channels,
             kernel_size=1,
             norm_cfg=self.norm_cfg)
-        self.AG = []
+        self.AG = nn.ModuleList()
         self.AG0 = Attention_block(self.channels, self.channels, self.channels)
         self.AG.append(self.AG0)
         self.AG1 = Attention_block(self.channels, self.channels, self.channels)
