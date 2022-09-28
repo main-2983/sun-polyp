@@ -1,3 +1,4 @@
+from symbol import parameters
 import torch
 import torch.nn as nn
 from mmcv.cnn import ConvModule
@@ -815,7 +816,7 @@ class MLP_OSAHead_v5_AG_noLinear(BaseDecodeHead):
         # slow concatenate
         _out = torch.empty(
             _inputs[0].shape
-        )
+        ).to(next(self.parameters()).device)
         outs = [_inputs[-1]]
         for idx in range(len(_inputs) - 1, 0, -1):
             # linear_prj = self.linear_projections[idx - 1]
