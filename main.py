@@ -76,7 +76,7 @@ if __name__ == '__main__':
     LOGGER.info(f"Experiment will be saved to {save_path}")
 
     # Log config
-    with open("/mnt/sdd/nguyen.van.quan/Researchs/Polyp/mcode/config.py", 'r') as f:
+    with open("mcode/config.py", 'r') as f:
         config_data = f.read().strip()
         with open(f"{save_path}/exp.log", 'w') as log_f:
             log_f.write(f"{config_data} \n")
@@ -91,7 +91,7 @@ if __name__ == '__main__':
             name=wandb_name,
             dir=wandb_dir,
             group=wandb_group,
-            settings=wandb.Settings(code_dir="/mnt/sdd/nguyen.van.quan/Researchs/Polyp/mmseg/models/decode_heads/"),
+            settings=wandb.Settings(code_dir="mmseg/models/decode_heads/"),
             config={"architecture":"RFP with 5 nodes"}
         )
 

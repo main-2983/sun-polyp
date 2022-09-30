@@ -14,7 +14,7 @@ from .lib.bifpn import BiFPN
 from mmseg.models.utils.se_layer import *
 from torch import nn
 from .lib.mlp_osa import MLP_OSA
-
+from .lib.fem import Uncertain_Boundary
 
 # psp feature instead of last input
 
@@ -71,6 +71,8 @@ class UPerHeadV3(BaseDecodeHead):
             self.conv_cfg, self.norm_cfg, self.act_cfg
         )
         
+        self.u_boundary = Uncertain_Boundary(self.channels, self.channels)
+        
         self.cls = nn.ModuleList()
         for i in range(4):
             cls_module = nn.Sequential(
@@ -101,6 +103,7 @@ class UPerHeadV3(BaseDecodeHead):
 
         ## edge attention
         feats = self.reverse_attn(out, out)
+        feats = self.u_boundary(feats)
 
 
         output = self.cls_seg(feats)

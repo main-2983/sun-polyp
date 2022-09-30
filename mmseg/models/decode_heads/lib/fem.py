@@ -2,10 +2,9 @@ from turtle import forward
 import torch
 import torch.nn as nn
 from mmcv.cnn import ConvModule
-from .attention import SequentialPolarizedSelfAttention
 from torch.nn import functional as F
 from mmcv.cnn import ConvModule, xavier_init, constant_init
-
+from mcode.config import device
 class DepthwiseConvBlock(nn.Module):
     """
     Depthwise seperable convolution. 
@@ -70,8 +69,7 @@ class FEM(nn.Module):
             self.e_convs.append(
                 nn.Sequential(
                     nn.Conv2d(self.in_channels, self.in_channels,
-                              kernel_size=3, padding=(i*2+1), dilation=(i*2+1))
-                )
+                              kernel_size=3, padding=(i*2+1), dilation=(i*2+1)))
             )
         self.fusion_conv = ConvModule(self.in_channels*3, self.channels,
                                       kernel_size=1, padding=0, norm_cfg=norm_cfg)
@@ -79,10 +77,10 @@ class FEM(nn.Module):
 
     def forward(self, input):
         inp_1 = self.e_convs[0](input)
-        inp_2 = self.e_convs[1](input)
-        inp_3 = self.e_convs[2](input)
+        inp_3 = self.e_convs[1](input)
+        inp_5 = self.e_convs[2](input)
         
-        inp_ = torch.cat([inp_1, inp_2, inp_3], dim=1)
+        inp_ = torch.cat([inp_1, inp_3, inp_5], dim=1)
         
         out = self.fusion_conv(inp_)
         return out
@@ -125,21 +123,29 @@ class Uncertain_Boundary(nn.Module):
         super().__init__()
         self.conv0 = ConvBlock(in_channel, 1, kernel_size=1, padding=0)
         self.conv1 = ConvBlock(in_channel, in_channel, kernel_size=3, padding=1)
-        self.conv2 = ConvBlock(in_channel, out_channel, kernel_size=3, padding=1)
-        self.gate = SequentialPolarizedSelfAttention(in_channel)
-        self.l_temp = torch.nn.Parameter(0.25, requires_grad=True)
-        self.h_temp = torch.nn.Parameter(0.75, requires_grad=True)
-
+        self.conv2 = ConvBlock(in_channel, in_channel, kernel_size=3, padding=1)
+        
     def forward(self, feature):
         mask = self.conv0(feature)
         s_mask = torch.sigmoid(mask)
-        t_mask = s_mask.clone()
-        t_mask[t_mask<self.l_temp] = -1
-        t_mask[(t_mask>=self.l_temp) & (t_mask<=self.h_temp)] = 1
-        t_mask[t_mask>self.h_temp] = 0
         
-        feature_ = F.relu(feature)
-        feature_ = t_mask.expand_as(feature_).mul(feature_)
-        feature_ = self.gate(self.conv1(feature_))
-        feature_ = self.conv2(feature_ + s_mask)
-        return feature_
+        dist = torch.abs(s_mask - 0.5)
+        boundary_att = 1 - (dist / 0.5)
+        boundary = feature * boundary_att
+        
+        #  #foregound
+        # foregound_att= s_mask
+        # foregound_att=torch.clip(foregound_att-boundary_att,0,1)
+        # foregound = feature*foregound_att
+        
+        # #background
+        # background_att=1-s_mask
+        # background_att=torch.clip(background_att-boundary_att,0,1)
+        # background = feature*background_att
+        
+
+        # uncertain = torch.cat([boundary, foregound, background], dim=1)
+        
+        uncertain = self.conv1(boundary)
+        uncertain = uncertain + feature
+        return uncertain

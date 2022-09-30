@@ -25,14 +25,14 @@ seed = 2022
 device = "cuda:1" if torch.cuda.is_available() else 'cpu'
 num_workers = 8
 
-train_images = glob.glob('/mnt/sdd/nguyen.van.quan/Researchs/Polyp/TrainDataset/image/*')
-train_masks = glob.glob('/mnt/sdd/nguyen.van.quan/Researchs/Polyp/TrainDataset/mask/*')
+train_images = glob.glob('TrainDataset/image/*')
+train_masks = glob.glob('TrainDataset/mask/*')
 
-test_folder = "/mnt/sdd/nguyen.van.quan/Researchs/Polyp/TestDataset"
+test_folder = "TestDataset"
 test_images = glob.glob(f'{test_folder}/*/images/*')
 test_masks = glob.glob(f'{test_folder}/*/masks/*')
 
-save_path = "/mnt/sdd/nguyen.van.quan/Researchs/Polyp/runs/test"
+save_path = "runs/test"
 
 image_size = 352
 
@@ -76,7 +76,7 @@ val_transform = A.Compose([
     ToTensorV2(),
 ])
 
-pretrained = "/mnt/sdd/nguyen.van.quan/Researchs/Polyp/pretrained/mit_b1_mmseg.pth"
+pretrained = "pretrained/mit_b1_mmseg.pth"
 model_cfg = dict(
     type='SunSegmentor',
     backbone=dict(
@@ -84,7 +84,7 @@ model_cfg = dict(
         in_channels=3,
         embed_dims=64,
         num_stages=4,
-        num_layers=[2, 2, 2, 2],
+        num_layers=[2,2,2,2],
         num_heads=[1, 2, 5, 8],
         patch_sizes=[7, 3, 3, 3],
         sr_ratios=[8, 4, 2, 1],
