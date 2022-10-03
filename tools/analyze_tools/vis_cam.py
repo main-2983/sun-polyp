@@ -13,9 +13,9 @@ from mmseg.models.builder import build_segmentor
 from mcode import select_device, UnNormalize
 
 # config
-ckpt_path = "logs/MLPOSA_v5/model_50.pth"
-image_path = "../Dataset/polyp/TestDataset/CVC-300/images/150.png"
-mask_path = "../Dataset/polyp/TestDataset/CVC-300/masks/150.png"
+ckpt_path = "../../logs/MLPOSA_v5/model_50.pth"
+image_path = "../../../Dataset/polyp/TestDataset/CVC-300/images/150.png"
+mask_path = "../../../Dataset/polyp/TestDataset/CVC-300/masks/150.png"
 transform = A.Compose([
     A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
     ToTensorV2(),

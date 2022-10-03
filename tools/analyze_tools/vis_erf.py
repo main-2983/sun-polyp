@@ -15,7 +15,7 @@ from mcode.metrics import AverageMeter
 from mcode.utils import select_device
 from mcode.dataset import ActiveDataset
 
-save_path = "ERF_vis.npy"
+save_path = "../../ERF_vis.npy"
 transform = A.Compose([
     A.Resize(1024, 1024, interpolation=Image.BICUBIC),
     A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
@@ -24,7 +24,7 @@ transform = A.Compose([
 train_images = glob.glob('../Dataset/polyp/TestDataset/*/images/*')
 train_masks = glob.glob('../Dataset/polyp/TestDataset/*/masks/*')
 num_images = 50
-ckpt_path = "logs/MLPOSA_v5/model_50.pth"
+ckpt_path = "../../logs/MLPOSA_v5/model_50.pth"
 model_cfg = dict(
     type='SunSegmentor',
     backbone=dict(

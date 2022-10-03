@@ -13,9 +13,9 @@ from mcode import select_device, UnNormalize
 
 # config
 AVG = True
-ckpt_path = "../checkpoints/MLP_OSAHead_v2.pth"
-image_path = "../Dataset/polyp/TestDataset/ETIS-LaribPolypDB/images/18.png"
-mask_path = "../Dataset/polyp/TestDataset/ETIS-LaribPolypDB/masks/18.png"
+ckpt_path = "../../../checkpoints/MLP_OSAHead_v2.pth"
+image_path = "../../../Dataset/polyp/TestDataset/ETIS-LaribPolypDB/images/18.png"
+mask_path = "../../../Dataset/polyp/TestDataset/ETIS-LaribPolypDB/masks/18.png"
 transform = A.Compose([
     A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
     ToTensorV2(),
