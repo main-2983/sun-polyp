@@ -6,6 +6,8 @@ from mmcv.cnn import ConvModule, xavier_init, constant_init
 from .lib.attention import AttentionModule, SequentialPolarizedSelfAttention
 from mmseg.models.utils import SELayer
 
+# 
+
 class FusionNode(nn.Module):
 
     def __init__(self,
@@ -29,11 +31,13 @@ class FusionNode(nn.Module):
 
         self.weight = nn.ModuleList()
         self.gap = nn.AdaptiveAvgPool2d(1)
-        for i in range(op_num - 1):
-            self.weight.append(
-                nn.Conv2d(in_channels * 2, 1, kernel_size=1, bias=True))
-            constant_init(self.weight[-1], 0)
+        self.weight = nn.Conv2d(in_channels * 2, 1, kernel_size=1, bias=True)
+        self.fusion_1 = nn.Sequential(
+            SELayer(in_channels * 2),
+            ConvModule(in_channels * 2, in_channels, kernel_size=1, order=('act', 'conv', 'norm'))
+        )
 
+        
         if self.upsample_attn:
             self.spatial_weight = nn.Conv2d(
                 in_channels * 2, 1, kernel_size=3, padding=1, bias=True)
@@ -57,25 +61,9 @@ class FusionNode(nn.Module):
                 if isinstance(m, nn.Conv2d):
                     xavier_init(m, distribution='uniform')
 
-        if op_num > 2:
-            self.pre_fusion = ConvModule(
-                out_channels,
-                out_channels,
-                kernel_size=3,
-                padding=1,
-                conv_cfg=out_conv_cfg,
-                norm_cfg=out_norm_cfg,
-                order=('act', 'conv', 'norm'))
-            if out_conv_cfg is None or out_conv_cfg['type'] == 'Conv2d':
-                for m in self.pre_fusion.modules():
-                    if isinstance(m, nn.Conv2d):
-                        xavier_init(m, distribution='uniform')
-
     def dynamicFusion(self, x):
         x1, x2 = x[0], x[1]
         batch, channel, height, width = x1.size()
-        weight1 = self.gap(x1)
-        weight2 = self.gap(x2)
         if self.upsample_attn:
             upsample_weight = (
                 self.temp * channel**(-0.5) *
@@ -84,22 +72,39 @@ class FusionNode(nn.Module):
                 upsample_weight.reshape(batch, 1, -1), dim=-1).reshape(
                     batch, 1, height, width) * height * width
             x2 = upsample_weight * x2
-        weight = torch.cat((weight1, weight2), dim=1)
-        weight = self.weight[0](weight)
-        weight = torch.sigmoid(weight)
-        result = weight * x1 + (1 - weight) * x2
+        weight = torch.cat((x1, x2), dim=1)
+        result = self.fusion_1(weight)
+
         if self.op_num == 3:
             x3 = x[2]
-            x1 = self.pre_fusion(result)
+            x1 = result
             weight1 = self.gap(x1)
             weight3 = self.gap(x3)
             weight = torch.cat((weight1, weight3), dim=1)
-            weight = self.weight[1](weight)
+            weight = self.weight(weight)
             weight = torch.sigmoid(weight)
             result = weight * x1 + (1 - weight) * x3
-        if self.with_out_conv:
-            result = self.post_fusion(result)
-        return 
+            if self.with_out_conv:
+                result = self.post_fusion(result)
+        return result
+
+    def _resize(self, x, size):
+        if x.shape[-2:] == size:
+            return x
+        elif x.shape[-2:] < size:
+            return F.interpolate(x, size=size, mode=self.upsample_mode)
+        else:
+            _, _, h, w = x.size()
+            x = F.max_pool2d(
+                F.pad(x, [0, w % 2, 0, h % 2], 'replicate'), (2, 2))
+            return x
+
+    def forward(self, x, out_size=None):
+        inputs = []
+        for feat in x:
+            inputs.append(self._resize(feat, out_size))
+        return self.dynamicFusion(inputs)
+
 
 
 class RCFPN(nn.Module):
@@ -149,13 +154,6 @@ class RCFPN(nn.Module):
 
 
         self.RevFP = nn.ModuleDict()
-        self.RevFP['p7'] = FusionNode(
-            in_channels=out_channels,
-            out_channels=out_channels,
-            out_conv_cfg=out_conv_cfg,
-            out_norm_cfg=norm_cfg,
-            op_num=2,
-            upsample_attn=False)
 
         self.RevFP['p6'] = FusionNode(
             in_channels=out_channels,
@@ -189,14 +187,9 @@ class RCFPN(nn.Module):
             op_num=2,
             upsample_attn=False)
         
-        self.se = SELayer(out_channels * 4)
         self.fusion_conv = ConvModule(out_channels * 4, out_channels,
                 kernel_size=1, padding=0, norm_cfg=norm_cfg)
-    def init_weights(self):
-        """Initialize the weights of module."""
-        for m in self.lateral_convs.modules():
-            if isinstance(m, nn.Conv2d):
-                xavier_init(m, distribution='uniform')
+
 
     def forward(self, inputs):
         """Forward function."""
@@ -210,8 +203,8 @@ class RCFPN(nn.Module):
         
         p6 = self.RevFP['p6']([c6, c5], out_size=c6.shape[-2:])
         p5 = self.RevFP['p5']([c5, c4, p6], out_size=c5.shape[-2:])
-        p4 = self.RevFP['p5']([c4, c3, p5], out_size=c4.shape[-2:])
-        p3 = self.RevFP['p5']([c3, p4], out_size=c3.shape[-2:])
+        p4 = self.RevFP['p4']([c4, c3, p5], out_size=c4.shape[-2:])
+        p3 = self.RevFP['p3']([c3, p4], out_size=c3.shape[-2:])
         
         
         
@@ -220,10 +213,9 @@ class RCFPN(nn.Module):
         p4 = F.interpolate(p4, size=c3.shape[-2:], mode="bilinear", align_corners=False)
         p5 = F.interpolate(p5, size=c3.shape[-2:], mode="bilinear", align_corners=False)
         p6 = F.interpolate(p6, size=c3.shape[-2:], mode="bilinear", align_corners=False)
-        # p7 = F.interpolate(p7, size=c3.shape[-2:], mode="bilinear", align_corners=False)
         
         
-        output = self.se(torch.cat([p3, p4, p5, p6], dim=1))        
+        output = torch.cat([p3, p4, p5, p6], dim=1)
         output = self.fusion_conv(output)        
         
         
