@@ -33,30 +33,8 @@ class UPerHeadV3(BaseDecodeHead):
     def __init__(self, pool_scales=(1, 2, 3, 6), **kwargs):
         super(UPerHeadV3, self).__init__(
             input_transform='multiple_select', **kwargs)
-        # PSP Module
-        self.psp_modules = PPM(
-            pool_scales,
-            self.in_channels[-1],
-            self.channels,
-            conv_cfg=self.conv_cfg,
-            norm_cfg=self.norm_cfg,
-            act_cfg=self.act_cfg,
-            align_corners=self.align_corners)
-        self.bottleneck = ConvModule(
-            self.in_channels[-1] + len(pool_scales) * self.channels,
-            self.channels,
-            3,
-            padding=1,
-            conv_cfg=self.conv_cfg,
-            norm_cfg=self.norm_cfg,
-            act_cfg=self.act_cfg)
-        
-        
-        self.fpn_bottleneck_3 = ConvModule(
-            self.channels * 2,
-            self.channels, 
-            kernel_size=3, padding=1, conv_cfg=self.conv_cfg, norm_cfg=self.norm_cfg, act_cfg=self.act_cfg)
 
+    
 
         # self.fuse_feature = BiFPN(self.in_channels, self.channels)
         self.fuse_feature = RCFPN(self.in_channels, self.channels, 5)
@@ -93,20 +71,18 @@ class UPerHeadV3(BaseDecodeHead):
     def forward(self, inputs):
 
         inputs = self._transform_inputs(inputs)
-        inputs.append(self.psp_forward(inputs))
 
         # build top-down path 3, 2, 1
-        fpn_outs = self.fuse_feature(inputs)
-        # fpn_outs[-2] = fpn_outs[-1]
-        outs = self.mlp_slow(fpn_outs[:-1])
-        out = outs[-1]
+        feats = self.fuse_feature(inputs)
+        # # fpn_outs[-2] = fpn_outs[-1]
+        # outs = self.mlp_slow(fpn_outs[:-1])
+        # out = outs[-1]
 
-        ## edge attention
-        feats = self.reverse_attn(out, out)
-        feats = self.u_boundary(feats)
+        # ## edge attention
+        # feats = self.reverse_attn(out, out)
+        # feats = self.u_boundary(feats)
 
 
         output = self.cls_seg(feats)
-        for i in range(4):
-            outs[i] = self.cls[i](outs[i])
-        return [output, outs[0], outs[1], outs[2], outs[3]]
+
+        return [output]
