@@ -521,7 +521,7 @@ class Attention_block(nn.Module):
         )
 
         self.psi = nn.Sequential(
-            nn.Conv2d(F_int, 1, kernel_size=1,stride=1,padding=1,bias=True),
+            nn.Conv2d(F_int, 1, kernel_size=1,stride=1,padding=0,bias=True),
             nn.BatchNorm2d(1),
             nn.Sigmoid()
         )
