@@ -124,3 +124,5 @@ wandb/
 checkpoints/
 TestDataset/
 TrainDataset/
+
+*.pyc
