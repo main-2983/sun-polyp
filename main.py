@@ -71,8 +71,8 @@ def full_val(model):
 
 
 if __name__ == '__main__':
-    dice_f = Dice(num_classes=2 , average=None).to(device)
-    iou_f = JaccardIndex(num_classes=2 ,average=None).to(device)
+#     dice_f = Dice(num_classes=2 , average=None).to(device)
+#     iou_f = JaccardIndex(num_classes=2 ,average=None).to(device)
     # Create log folder
     if not os.path.exists(f"{save_path}/checkpoints"):
         os.makedirs(f"{save_path}/checkpoints", exist_ok=True)
