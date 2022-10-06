@@ -40,7 +40,7 @@ from .mlp_slowcatese_head import MLPSLowCatESEHead
 from .mlp_slowcat_la_head import MLPSLowCatLAHead
 from .ssformer_head import SSFormerHead
 from .uper_headv3 import UPerHeadV3
-
+from .rcfpn_head import RPFNHead
 __all__ = [
     'FCNHead', 'PSPHead', 'ASPPHead', 'PSAHead', 'NLHead', 'GCHead', 'CCHead',
     'UPerHead', 'DepthwiseSeparableASPPHead', 'ANNHead', 'DAHead', 'OCRHead',
@@ -51,6 +51,6 @@ __all__ = [
     'KernelUpdateHead', 'KernelUpdator', 'UperLRCHead',
     'MLPGeSEHead', 'MLPGeSEHead_v2', 'MLPSEHead', 'MLPLAHead',
     'MLPLARAHead', 'MLP_OSAHead', 'MLPSLowHead', 'MLPSLowCatHead',
-    'MLPSLowCatSEHead', 'MLPSLowCatESEHead', 'MLPSLowCatLAHead',
+    'MLPSLowCatSEHead', 'MLPSLowCatESEHead', 'MLPSLowCatLAHead', 'RPFNHead',
     'MLP_OSAHead_v2', 'SSFormerHead', 'MLP_OSAHead_v3', 'MLP_OSAHead_v4', 'UPerHeadV3'
 ]

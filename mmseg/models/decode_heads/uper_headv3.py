@@ -5,7 +5,7 @@ from mmcv.cnn import ConvModule
 
 from mmseg.ops import resize
 
-from .rcfpn import RCFPN
+# from .rcfpn import RCFPN
 from ..builder import HEADS
 from .decode_head import BaseDecodeHead
 from .psp_head import PPM
@@ -73,12 +73,11 @@ class UPerHeadV3(BaseDecodeHead):
         inputs = self._transform_inputs(inputs)
 
         # build top-down path 3, 2, 1
-        feats = self.fuse_feature(inputs)
-        # # fpn_outs[-2] = fpn_outs[-1]
-        # outs = self.mlp_slow(fpn_outs[:-1])
-        # out = outs[-1]
+        fpn_outs = self.fuse_feature(inputs)
+        # fpn_outs[-2] = fpn_outs[-1]
+        feats = self.mlp_slow(fpn_outs)
 
-        # ## edge attention
+        ## edge attention
         # feats = self.reverse_attn(out, out)
         # feats = self.u_boundary(feats)
 

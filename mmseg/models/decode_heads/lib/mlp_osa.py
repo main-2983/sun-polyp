@@ -33,22 +33,22 @@ class MLP_OSA(nn.Module):
                     ConvModule(
                     in_channels=self.channels * 2 if self.ops == 'cat' else self.channels,
                     out_channels=self.channels, norm_cfg=None,
-                    kernel_size=3, 
-                    padding=1),
+                    kernel_size=1, 
+                    padding=0),
                     
                 )
             )
         
         self.aa_module = AA_kernel(self.channels, self.channels)
         self.fusion_conv = ConvModule(
-            in_channels=self.channels * num_inputs,
+            in_channels=self.channels * 4,
             out_channels=self.channels,
-            kernel_size=3, padding=1,
+            kernel_size=1, padding=0,
             norm_cfg=None)
         
         self.layer_attn = LayerAttention(
-            self.channels * num_inputs,
-            groups=num_inputs, la_down_rate=4
+            self.channels * 4,
+            groups=4, la_down_rate=8
         )
 
     def forward(self, inputs):
@@ -85,14 +85,14 @@ class MLP_OSA(nn.Module):
             _out = linear_prj(x)
             outs.append(_out)
             
-        out = torch.cat(outs, dim=1)
-        out = self.layer_attn(out)
-        out = self.fusion_conv(out)
-        aa_atten = self.aa_module(out)
-        # out  = outs[-1]  + aa_atten
-        out  = out  + aa_atten
-        out += outs[-1]
+        # out = torch.cat(outs, dim=1)
+        # out = self.layer_attn(out)
+        # out = self.fusion_conv(out)
+        # aa_atten = self.aa_module(out)
+        # # out  = outs[-1]  + aa_atten
+        # out  = out  + aa_atten
+        # out += outs[-1]
         
-        outs.append(out)
+        # outs.append(out)
 
-        return outs
+        return _out
