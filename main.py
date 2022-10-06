@@ -164,16 +164,17 @@ if __name__ == '__main__':
             pred_mask = (y_hat_mask > 0.5).float()
             # print(pred_mask.long().shape, y.long().shape)
             train_loss_meter.update(loss.item(), n)
-            # tp, fp, fn, tn = smp.metrics.get_stats(pred_mask.long(), y.long(), mode="binary")
-            # per_image_iou = smp.metrics.iou_score(tp, fp, fn, tn, reduction="micro-imagewise")
-            # dataset_iou = smp.metrics.iou_score(tp, fp, fn, tn, reduction="micro")
-            # iou_meter.update(per_image_iou, n)
-            # dice_meter.update(dataset_iou, n)
-            with torch.no_grad():
-                iou = iou_f(pred_mask.long(), y.long())[1].item()
-                dice = dice_f(pred_mask.long(), y.long())[1].item()
-            iou_meter.update(iou, n)
-            dice_meter.update(dice, n)
+            tp, fp, fn, tn = smp.metrics.get_stats(pred_mask.long(), y.long(), mode="binary")
+            per_image_iou = smp.metrics.iou_score(tp, fp, fn, tn, reduction="micro-imagewise")
+            dataset_iou = smp.metrics.iou_score(tp, fp, fn, tn, reduction="micro")
+            iou_meter.update(per_image_iou, n)
+            dice_meter.update(dataset_iou, n)
+            
+#             with torch.no_grad():
+#                 iou = iou_f(pred_mask.long(), y.long())[1].item()
+#                 dice = dice_f(pred_mask.long(), y.long())[1].item()
+#             iou_meter.update(iou, n)
+#             dice_meter.update(dice, n)
 
         LOGGER.info("EP {} TRAIN: LOSS = {}, avg_dice = {}, avg_iou = {}".format(ep, train_loss_meter.avg, dice_meter.avg,
                                                                            iou_meter.avg))
