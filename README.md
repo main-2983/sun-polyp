@@ -2,7 +2,7 @@
 Config everything in `mcode/config.py`  
 What to config?
 + Model:
-    + Follow mmseg config
+    + Follow `mmseg` config
     + `pretrained`: path to ImageNet pretrained MiT backbone
     + Please change `pretrained` in `backbone` to `pretrained=pretrained`
     + Config model head to head of your choice
