@@ -267,7 +267,7 @@ class RPPHead(BaseDecodeHead):
     def forward(self, inputs):
         """Forward function."""
         # build P3-P5
-        inputs = self._transform_inputs(inputs)
+        
         feats = [
             lateral_conv(inputs[i + self.start_level])
             for i, lateral_conv in enumerate(self.lateral_convs)
@@ -295,7 +295,7 @@ class RPPHead(BaseDecodeHead):
 
 
         
-        z3 = p3 + aa_atten
+        z3 = p3 
         z4 = c4 + p3
         z5 = c5 + p4
         z6 = c6 + p5
