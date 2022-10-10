@@ -5,6 +5,8 @@ import torch
 from .decode_head import BaseDecodeHead
 import numpy as np
 from mmcv.cnn import ConvModule, xavier_init, constant_init
+from .lib.attention import SequentialPolarizedSelfAttention
+from .lib.axial_attention import PAA_e
 torch.autograd.set_detect_anomaly(True)
 
 
@@ -13,7 +15,7 @@ class BNPReLU(nn.Module):
     def __init__(self, nIn):
         super().__init__()
         self.bn = nn.BatchNorm2d(nIn, eps=1e-3)
-        self.acti = nn.PReLU(nIn)
+        self.acti = nn.ReLU(nIn)
 
     def forward(self, input):
         output = self.bn(input)
@@ -67,6 +69,19 @@ class SpatialBranch(nn.Module):
         context = self.spatialPooling(x * channel_context)
         context = self.trans(context).unsqueeze(0)
         return context
+
+class FSM(nn.Module):
+    def __init__(self, c1, c2):
+        super().__init__()
+        self.conv_atten = nn.Conv2d(c1, c1, 1, bias=False)
+        self.conv = nn.Conv2d(c1, c2, 1, bias=False)
+
+    def forward(self, x):
+        atten = self.conv_atten(F.avg_pool2d(x, x.shape[2:])).sigmoid()
+        feat = torch.mul(x, atten)
+        x = x + feat
+        return self.conv(x)
+
 class FusionNode(nn.Module):
 
     def __init__(self,
@@ -74,11 +89,10 @@ class FusionNode(nn.Module):
                  out_channels=256,
                  with_out_conv=True,
                  out_conv_cfg=None,
-                 out_norm_cfg=dict(type='BN', requires_grad=True),
-                 out_conv_order=('act', 'conv', 'norm'),
+                 out_norm_cfg=None,
                  upsample_mode='bilinear',
                  op_num=2,
-                 upsample_attn=True):
+                 upsample_attn=False):
         super(FusionNode, self).__init__()
         assert op_num == 2 or op_num == 3
         self.with_out_conv = with_out_conv
@@ -88,80 +102,53 @@ class FusionNode(nn.Module):
         act_cfg = None
         self.act_cfg = act_cfg
 
+        self.weight = nn.ModuleList()
         self.gap = nn.AdaptiveAvgPool2d(1)
-        self.weight = nn.Conv2d(in_channels * 2, 1, kernel_size=1, bias=True)
-        constant_init(self.weight, 0)
+        for i in range(op_num):
+            self.weight.append(
+                FSM(in_channels, in_channels))
 
-        self.fusion = nn.ModuleList()
-        for i in range(op_num-1):
-            self.fusion.append(ConvModule(in_channels*2, in_channels, kernel_size=1, norm_cfg=out_norm_cfg, order=out_conv_order))
-            for m in self.fusion[-1].modules():
+        if self.with_out_conv:
+            self.post_fusion = nn.Sequential(
+                ConvModule(
+                out_channels,
+                out_channels,
+                kernel_size=3,
+                padding=1,
+                conv_cfg=out_conv_cfg,
+                norm_cfg=out_norm_cfg,
+                order=('act', 'conv', 'norm')),
+            )
+        if out_conv_cfg is None or out_conv_cfg['type'] == 'Conv2d':
+            for m in self.post_fusion.modules():
                 if isinstance(m, nn.Conv2d):
                     xavier_init(m, distribution='uniform')
 
-        if self.upsample_attn:
-            self.spatial_weight = nn.Conv2d(
-                in_channels * 2, 1, kernel_size=3, padding=1, bias=True)
-            self.temp = nn.Parameter(
-                torch.ones(1, dtype=torch.float32), requires_grad=True)
-            for m in self.spatial_weight.modules():
-                if isinstance(m, nn.Conv2d):
-                    constant_init(m, 0)
-
-        # if self.with_out_conv:
-        #     self.post_fusion = ConvModule(
-        #         out_channels,
-        #         out_channels,
-        #         kernel_size=3,
-        #         padding=1,
-        #         conv_cfg=out_conv_cfg,
-        #         norm_cfg=out_norm_cfg,
-        #         order=('act', 'conv', 'norm'))
-        # if out_conv_cfg is None or out_conv_cfg['type'] == 'Conv2d':
-        #     for m in self.post_fusion.modules():
-        #         if isinstance(m, nn.Conv2d):
-        #             xavier_init(m, distribution='uniform')
-
         if op_num > 2:
-            self.post_fusion = ConvModule(
+            self.pre_fusion = ConvModule(
                 out_channels,
                 out_channels,
-                kernel_size=1,
-                padding=0,
+                kernel_size=3,
+                padding=1,
                 conv_cfg=out_conv_cfg,
                 norm_cfg=out_norm_cfg,
                 order=('act', 'conv', 'norm'))
             if out_conv_cfg is None or out_conv_cfg['type'] == 'Conv2d':
-                for m in self.post_fusion.modules():
+                for m in self.pre_fusion.modules():
                     if isinstance(m, nn.Conv2d):
                         xavier_init(m, distribution='uniform')
 
     def dynamicFusion(self, x):
-        x1, x2 = x[0], x[1]
-        batch, channel, height, width = x1.size()
-
-        if self.upsample_attn:
-            upsample_weight = (
-                self.temp * channel**(-0.5) *
-                self.spatial_weight(torch.cat((x1, x2), dim=1)))
-            upsample_weight = F.softmax(
-                upsample_weight.reshape(batch, 1, -1), dim=-1).reshape(
-                    batch, 1, height, width) * height * width
-            x2 = upsample_weight * x2
-        result = self.fusion[0](torch.cat([x1,x2], dim=1))
+        x1 = self.weight[0](x[0])
+        x2 = self.weight[1](x[1])
+        
+        result = x1 + x2
         if self.op_num == 3:
-            x3 = x[2]
-            f_1 = result
-            f_2 = self.fusion[1](torch.cat([x2, x3], dim=1))
-
-            weight1 = self.gap(f_1)
-            weight3 = self.gap(f_2)
-            weight = torch.cat((weight1, weight3), dim=1)
-            weight = self.weight(weight)
-            weight = torch.sigmoid(weight)
-            result = weight * f_1 + (1 - weight) * f_2
-            if self.with_out_conv:
-                result = self.post_fusion(result)
+            x3 = self.weight[1](x[2])
+            x1 = self.pre_fusion(result)
+            result = x1 + x3
+        if self.with_out_conv:
+            result = self.post_fusion(result)
         return result
 
     def _resize(self, x, size):
@@ -180,6 +167,7 @@ class FusionNode(nn.Module):
         for feat in x:
             inputs.append(self._resize(feat, out_size))
         return self.dynamicFusion(inputs)
+
 
     
 @HEADS.register_module()
@@ -207,13 +195,7 @@ class RPFNHead(BaseDecodeHead):
         # add lateral connections
         self.lateral_convs = nn.ModuleList()
         for i in range(self.start_level, self.backbone_end_level):
-            l_conv = nn.Sequential(
-                ConvModule(
-                self.in_channels[i],
-                self.channels,
-                kernel_size=3, padding=1,
-                norm_cfg=norm_cfg),
-            )
+            l_conv = PAA_e(self.in_channels[i], self.channels)
             self.lateral_convs.append(l_conv)
 
         self.RevFP = nn.ModuleDict()
@@ -234,23 +216,22 @@ class RPFNHead(BaseDecodeHead):
             out_channels=self.channels,
             out_conv_cfg=out_conv_cfg,
             out_norm_cfg=norm_cfg,
-            op_num=3, upsample_attn=True)
+            op_num=2, upsample_attn=False)
 
         self.RevFP['p4'] = FusionNode(
             in_channels=self.channels,
             out_channels=self.channels,
             out_conv_cfg=out_conv_cfg,
             out_norm_cfg=norm_cfg,
-            op_num=3, upsample_attn=True)
+            op_num=2, upsample_attn=False)
 
         self.RevFP['p3'] = FusionNode(
             in_channels=self.channels,
             out_channels=self.channels,
             out_conv_cfg=out_conv_cfg,
             out_norm_cfg=norm_cfg,
-            op_num=2, upsample_attn=True)
+            op_num=2, upsample_attn=False)
         
-        self.bn_relu = BNPReLU(self.channels * 4)
         
         self.fusion_conv = ConvModule(self.channels * 4, self.channels,
                 kernel_size=1, padding=0, norm_cfg=norm_cfg)
@@ -259,7 +240,7 @@ class RPFNHead(BaseDecodeHead):
         if x.shape[-2:] == size:
             return x
         elif x.shape[-2:] < size:
-            return F.interpolate(x, size=size, mode=self.upsample_mode)
+            return F.interpolate(x, size=size, mode="bilinear", align_corners=False)
         else:
             _, _, h, w = x.size()
             x = F.max_pool2d(
@@ -276,33 +257,23 @@ class RPFNHead(BaseDecodeHead):
             for i, lateral_conv in enumerate(self.lateral_convs)
         ]
         c3, c4, c5, c6 = feats
+
         # fixed order 
-        
         p3 = self.RevFP['p3']([c3, c4], out_size=c3.shape[-2:])
         p4 = self.RevFP['p4']([c4, c5, p3], out_size=c4.shape[-2:])
         p5 = self.RevFP['p5']([c5, c6, p4], out_size=c5.shape[-2:])
         p6 = self.RevFP['p6']([c6, p5], out_size=c6.shape[-2:])
+
+        p4 = self._resize(p4, size=c3.shape[-2:])
+        p5 = self._resize(p5, size=c3.shape[-2:])
+        p6 = self._resize(p6, size=c3.shape[-2:])
+
         
-        p4 = F.interpolate(p4, size=c3.shape[-2:], mode="bilinear", align_corners=False)
-        p5 = F.interpolate(p5, size=c3.shape[-2:], mode="bilinear", align_corners=False)
-        p6 = F.interpolate(p6, size=c3.shape[-2:], mode="bilinear", align_corners=False)
+
         
-        output = torch.cat([p3.unsqueeze(1), p4.unsqueeze(1), p5.unsqueeze(1), p6.unsqueeze(1)], dim=1)  # B*4*C*H*W
+        output = self.fusion_conv(torch.cat([p3,p4,p5,p6], dim=1))
+
         
-        output = output.permute(1, 0, 2, 3, 4) + self.spatialContext(output) + self.scaleContext(output)    
-        
-        list_p = [p3, p4, p5, p6]
-        for i in range(4):
-            list_p[i] = list_p[i] + output[i]
-        p3, p4, p5, p6 = list_p
-        
-        z3 = p3
-        z4 = z3 + p4
-        z5 = z4 + p5
-        z6 = z5 + p6
-        
-        output = self.bn_relu(torch.cat([z3, z4, z5, z6], dim=1))
-        output = self.fusion_conv(output)
-        
+
         output = self.cls_seg(output)
         return [output]

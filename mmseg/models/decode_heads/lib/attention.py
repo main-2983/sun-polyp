@@ -18,9 +18,9 @@ class self_attn(nn.Module):
 
         self.mode = mode
 
-        self.query_conv = Conv(in_channels, in_channels // 8, kSize=(1, 1),stride=1,padding=0)
-        self.key_conv = Conv(in_channels, in_channels // 8, kSize=(1, 1),stride=1,padding=0)
-        self.value_conv = Conv(in_channels, in_channels, kSize=(1, 1),stride=1,padding=0)
+        self.query_conv = Conv(in_channels, in_channels // 8, kernel_size=(1, 1))
+        self.key_conv = Conv(in_channels, in_channels // 8, kernel_size=(1, 1))
+        self.value_conv = Conv(in_channels, in_channels, kernel_size=(1, 1))
 
         self.gamma = nn.Parameter(torch.zeros(1))
         self.sigmoid = nn.Sigmoid()
