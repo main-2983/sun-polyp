@@ -12,6 +12,7 @@ from .conv import Conv
 import math
 from mmcv.cnn import ConvModule
 from mmseg.models.utils import *
+from .psa import PSA_p
 class self_attn(nn.Module):
     def __init__(self, in_channels, mode='hw'):
         super(self_attn, self).__init__()
@@ -352,3 +353,37 @@ class AttentionModule(nn.Module):
         attn = attn_1 + attn_2
         attn = self.conv1(attn)
         return u * attn
+    
+
+
+class PSABlock(nn.Module):
+    expansion = 1
+
+    def __init__(self, inplanes, planes, stride=1, downsample=None):
+        super(PSABlock, self).__init__()
+        BN_MOMENTUM = 0.1
+        self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=3, padding=1)
+        self.bn1 = nn.BatchNorm2d(planes, momentum=BN_MOMENTUM)
+        self.relu = nn.ReLU(inplace=True)
+        self.deattn = PSA_p(planes, planes)
+        self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, padding=1)
+        self.bn2 = nn.BatchNorm2d(planes, momentum=BN_MOMENTUM)
+        self.downsample = downsample
+        self.stride = stride
+
+    def forward(self, x):
+        residual = x
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = self.relu(out)
+        out = self.deattn(out)
+        out = self.conv2(out)
+        out = self.bn2(out)
+
+        if self.downsample is not None:
+            residual = self.downsample(x)
+
+        out = out + residual
+        out = self.relu(out)
+
+        return out
