@@ -5,7 +5,8 @@ import torch
 from .decode_head import BaseDecodeHead
 import numpy as np
 from mmcv.cnn import ConvModule, xavier_init, constant_init
-from .lib.attention import PSABlock
+from .lib.psa import PSA_p
+from mmseg.models.utils import SELayer
 torch.autograd.set_detect_anomaly(True)
 
 
@@ -116,7 +117,6 @@ class FusionNode(nn.Module):
                  with_out_conv=True,
                  out_conv_cfg=None,
                  out_norm_cfg=dict(type='BN', requires_grad=True),
-                 out_conv_order=('act', 'conv', 'norm'),
                  upsample_mode='bilinear',
                  op_num=2,
                  upsample_attn=True):
@@ -135,9 +135,15 @@ class FusionNode(nn.Module):
             self.weight.append(
                 nn.Conv2d(in_channels * 2, 1, kernel_size=1, bias=True))
             constant_init(self.weight[-1], 0)
-
+            
         if self.upsample_attn:
-            self.attn_gate = Attention_block(out_channels, out_channels, out_channels)
+            self.spatial_weight = nn.Conv2d(
+                in_channels * 2, 1, kernel_size=3, padding=1, bias=True)
+            self.temp = nn.Parameter(
+                torch.ones(1, dtype=torch.float32), requires_grad=True)
+            for m in self.spatial_weight.modules():
+                if isinstance(m, nn.Conv2d):
+                    constant_init(m, 0)
 
         if self.with_out_conv:
             self.post_fusion = ConvModule(
@@ -145,22 +151,18 @@ class FusionNode(nn.Module):
                 out_channels,
                 kernel_size=3,
                 padding=1,
-                conv_cfg=out_conv_cfg,
-                norm_cfg=out_norm_cfg,
-                order=('act', 'conv', 'norm'))
+                conv_cfg=out_conv_cfg)
         if out_conv_cfg is None or out_conv_cfg['type'] == 'Conv2d':
             for m in self.post_fusion.modules():
                 if isinstance(m, nn.Conv2d):
                     xavier_init(m, distribution='uniform')
-
         self.pre_fusion = ConvModule(
-            out_channels * 2,
+            out_channels,
             out_channels,
             kernel_size=3,
             padding=1,
             conv_cfg=out_conv_cfg,
-            norm_cfg=out_norm_cfg,
-            order=('act', 'conv', 'norm'))
+            norm_cfg=out_norm_cfg)
         if out_conv_cfg is None or out_conv_cfg['type'] == 'Conv2d':
             for m in self.pre_fusion.modules():
                 if isinstance(m, nn.Conv2d):
@@ -171,12 +173,23 @@ class FusionNode(nn.Module):
         batch, channel, height, width = x1.size()
 
         if self.upsample_attn:
-            x2 = self.attn_gate(x1,x2)
-        result = self.pre_fusion(torch.cat([x1, x2], dim=1))
-        
+            upsample_weight = (
+                self.temp * channel**(-0.5) *
+                self.spatial_weight(torch.cat((x1, x2), dim=1)))
+            upsample_weight = F.softmax(
+                upsample_weight.reshape(batch, 1, -1), dim=-1).reshape(
+                    batch, 1, height, width) * height * width
+            x2 = upsample_weight * x2
+            
+        weight1 = self.gap(x1)
+        weight2 = self.gap(x2)
+        weight = torch.cat((weight1, weight2), dim=1)
+        weight = self.weight[0](weight)
+        weight = torch.sigmoid(weight)
+        result = weight * x1 + (1 - weight) * x2        
         if self.op_num == 3:
             x3 = x[2]
-            x1 = result
+            x1 = self.pre_fusion(result)
             weight1 = self.gap(x1)
             weight3 = self.gap(x3)
             weight = torch.cat((weight1, weight3), dim=1)
@@ -230,13 +243,15 @@ class RPFNHead(BaseDecodeHead):
         # add lateral connections
         self.lateral_convs = nn.ModuleList()
         for i in range(self.start_level, self.backbone_end_level):
-            l_conv = ConvModule(
+            l_conv = nn.Sequential(
+                # PSA_p(self.in_channels[i], self.in_channels[i]),
+                ConvModule(
                 self.in_channels[i],
                 self.channels,
                 kernel_size=3,
                 padding=1,
-                norm_cfg=norm_cfg,
-                order=('act', 'conv', 'norm'))
+                norm_cfg=norm_cfg),
+            )
             self.lateral_convs.append(l_conv)
 
         self.RevFP = nn.ModuleDict()
@@ -260,10 +275,11 @@ class RPFNHead(BaseDecodeHead):
             out_channels=self.channels,
             op_num=2, upsample_attn=True)
         
-        self.psa1 = PSABlock(self.channels, self.channels)
-        self.psa2 = PSABlock(self.channels, self.channels)
-        self.psa3 = PSABlock(self.channels, self.channels)
-        self.psa4 = PSABlock(self.channels, self.channels)
+        self.psa1 = PSA_p(self.channels, self.channels)
+        self.psa2 = PSA_p(self.channels, self.channels)
+        self.psa3 = PSA_p(self.channels, self.channels)
+        self.psa4 = PSA_p(self.channels, self.channels)
+        
         
         self.fusion_conv = ConvModule(self.channels * 4, self.channels,
                 kernel_size=1, padding=0, norm_cfg=norm_cfg)
@@ -289,11 +305,7 @@ class RPFNHead(BaseDecodeHead):
             for i, lateral_conv in enumerate(self.lateral_convs)
         ]
         c3, c4, c5, c6 = feats
-        
-        c3 = self.psa1(c3)
-        c4 = self.psa2(c4)
-        c5 = self.psa3(c5)
-        c6 = self.psa4(c6)
+    
         
 
         # fixed order 
@@ -306,10 +318,10 @@ class RPFNHead(BaseDecodeHead):
         p5 = self._resize(p5, size=c3.shape[-2:])
         p6 = self._resize(p6, size=c3.shape[-2:])
         
-        # p6 = self.psa1(p6, p6)
-        # p5 = self.psa2(p5, p6)
-        # p4 = self.psa3(p4, p5)
-        # p3 = self.psa4(p3, p4)
+        p6 = self.psa1(p6)
+        p5 = self.psa2(p5)
+        p4 = self.psa3(p4)
+        p3 = self.psa4(p3)
         
 
         
