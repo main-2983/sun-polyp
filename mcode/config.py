@@ -43,9 +43,9 @@ train_loss_meter = AverageMeter()
 iou_meter = AverageMeter()
 dice_meter = AverageMeter()
 
-n_eps = 50
-save_ckpt_ep = 40
-val_ep = 40
+n_eps = 20
+save_ckpt_ep = 18
+val_ep = 15
 best = -1.
 
 init_lr = 1e-4
