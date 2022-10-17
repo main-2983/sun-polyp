@@ -15,19 +15,19 @@ from .metrics import AverageMeter
 use_wandb = False
 wandb_key = None
 wandb_project = "Seg-Uper"
-wandb_entity = "ssl-online"
+wandb_entity = "Polyp-Research"
 wandb_name = "RFP (1)"
 wandb_group = "RFP"
 wandb_dir = "./wandb"
 
 seed = 2022
 device = select_device("cuda:0" if torch.cuda.is_available() else 'cpu')
-num_workers = 0
+num_workers = 4
 
-train_images = glob.glob('Dataset/TrainDataset/image/*')
-train_masks = glob.glob('Dataset/TrainDataset/mask/*')
+train_images = glob.glob('/mnt/sdd/nguyen.van.quan/Researchs/Polyp/TrainDataset/image/*')
+train_masks = glob.glob('/mnt/sdd/nguyen.van.quan/Researchs/Polyp/TrainDataset/mask/*')
 
-test_folder = "Dataset/TestDataset"
+test_folder = "/mnt/sdd/nguyen.van.quan/Researchs/Polyp/TestDataset"
 test_images = glob.glob(f'{test_folder}/*/images/*')
 test_masks = glob.glob(f'{test_folder}/*/masks/*')
 
@@ -35,7 +35,7 @@ save_path = "runs/test"
 
 image_size = 352
 
-bs = 1
+bs = 16
 bs_val = 2
 grad_accumulate_rate = 1
 
