@@ -15,7 +15,7 @@ from mcode import ActiveDataset, get_scores, LOGGER, set_seed_everything, set_lo
 from mcode.config import *
 
 
-def full_val(model):
+def full_val(model, epoch):
     print("#" * 20)
     model.eval()
     dataset_names = ['Kvasir', 'CVC-ClinicDB', 'CVC-ColonDB', 'CVC-300', 'ETIS-LaribPolypDB']
@@ -57,8 +57,10 @@ def full_val(model):
         ious.update(mean_iou)
         dices.update(mean_dice)
         if use_wandb:
-            wandb.log({f'{dataset_name}_dice': mean_dice})
-            wandb.log({f'{dataset_name}_iou': mean_iou})
+            wandb.log({f'{dataset_name}_dice': mean_dice,
+                       'epoch': epoch})
+            wandb.log({f'{dataset_name}_iou': mean_iou,
+                       'epoch': epoch})
         table.append([dataset_name, mean_iou, mean_dice])
     table.append(['Total', ious.avg, dices.avg])
 
@@ -176,14 +178,15 @@ if __name__ == '__main__':
                                                                            iou_meter.avg))
 
         if use_wandb:
-            wandb.log({'train_dice': dice_meter.avg})
+            wandb.log({'train_dice': dice_meter.avg,
+                       'epoch': ep})
         if ep >= save_ckpt_ep:
             torch.save(model.state_dict(), f"{save_path}/checkpoints/model_{ep}.pth")
 
         if ep >= val_ep:
             # val model
             with torch.no_grad():
-                iou, dice = full_val(model)
+                iou, dice = full_val(model, ep)
                 if (dice > best):
                     torch.save(model.state_dict(), f"{save_path}/checkpoints/best.pth")
                     best = dice
