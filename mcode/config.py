@@ -43,9 +43,9 @@ train_loss_meter = AverageMeter()
 iou_meter = AverageMeter()
 dice_meter = AverageMeter()
 
-n_eps = 50
-save_ckpt_ep = 40
-val_ep = 40
+n_eps = 20
+save_ckpt_ep = 18
+val_ep = 15
 best = -1.
 
 init_lr = 1e-4
@@ -87,9 +87,8 @@ model_cfg = dict(
         num_outs=4
     ),
     decode_head=dict(
-        type='FCNHead',
+        type='GFCNHead',
         num_classes=1,
-        input_transform='resize_concat',
         in_index=[0, 1, 2, 3],
         in_channels=[256, 256, 256, 256],
         channels=256
