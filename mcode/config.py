@@ -14,8 +14,8 @@ from .metrics import AverageMeter
 # ===============================================================================
 use_wandb = False
 wandb_key = None
-wandb_project = "Seg-Uper"
-wandb_entity = "Polyp-Research"
+wandb_project = "Polyp-Research"
+wandb_entity = "ssl-online"
 wandb_name = "RFP (1)"
 wandb_group = "RFP"
 wandb_dir = "./wandb"
@@ -43,9 +43,9 @@ train_loss_meter = AverageMeter()
 iou_meter = AverageMeter()
 dice_meter = AverageMeter()
 
-n_eps = 20
-save_ckpt_ep = 18
-val_ep = 15
+n_eps = 50
+save_ckpt_ep = 40
+val_ep = 40
 best = -1.
 
 init_lr = 1e-4
