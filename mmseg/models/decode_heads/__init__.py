@@ -30,8 +30,6 @@ from .stdc_head import STDCHead
 from .uper_head import UPerHead
 from .uper_LRC_head import UperLRCHead
 from .ssformer_head import SSFormerHead
-from .gfcn_head import GFCNHead
-from .gfcn_head_ds import GFCNHeadDS, GFCNHeadDS_v2
 
 __all__ = [
     'FCNHead', 'PSPHead', 'ASPPHead', 'PSAHead', 'NLHead', 'GCHead', 'CCHead',
@@ -40,6 +38,5 @@ __all__ = [
     'PointHead', 'APCHead', 'DMHead', 'LRASPPHead', 'SETRUPHead',
     'SETRMLAHead', 'DPTHead', 'SETRMLAHead', 'SegmenterMaskTransformerHead',
     'SegformerHead', 'ISAHead', 'STDCHead', 'IterativeDecodeHead',
-    'KernelUpdateHead', 'KernelUpdator', 'UperLRCHead', 'GFCNHead',
-    'GFCNHeadDS', 'GFCNHeadDS_v2'
+    'KernelUpdateHead', 'KernelUpdator', 'UperLRCHead'
 ]
