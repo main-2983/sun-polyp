@@ -22,7 +22,7 @@ wandb_group = "RFP baseline"
 wandb_dir = "./wandb"
 
 seed = 2022
-device = "cuda:1" if torch.cuda.is_available() else 'cpu'
+device = "cuda:0" if torch.cuda.is_available() else 'cpu'
 num_workers = 8
 
 train_images = glob.glob('TrainDataset/image/*')

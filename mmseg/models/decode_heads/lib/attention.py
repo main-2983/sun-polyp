@@ -11,8 +11,6 @@ import torch.nn.functional as F
 from .conv import Conv
 import math
 from mmcv.cnn import ConvModule
-from mmseg.models.utils import *
-from .psa import PSA_p
 class self_attn(nn.Module):
     def __init__(self, in_channels, mode='hw'):
         super(self_attn, self).__init__()
@@ -122,7 +120,8 @@ class LayerAttention(nn.Module):
         self.in_channels = in_channels
         self.groups = groups
         self.layer_attention = nn.Sequential(
-            nn.Conv2d(self.in_channels, self.in_channels // la_down_rate, kernel_size=1, padding=0),
+            nn.Conv2d(self.in_channels, self.in_channels // la_down_rate, kernel_size=3, padding=1),
+            nn.BatchNorm2d(self.in_channels // la_down_rate),
             nn.ReLU(inplace=True),
             nn.Conv2d(
                 self.in_channels // la_down_rate,
@@ -160,7 +159,7 @@ class ReverseAttention(nn.Module):
         self.out_channels = out_channels
         self.in_channels = in_channels
         self.fpn_bottleneck = ConvModule(
-            self.in_channels, self.out_channels,
+            self.in_channels, 1,
             kernel_size=1, padding=0, conv_cfg=conv_cfg, norm_cfg=norm_cfg, act_cfg=act_cfg)
         
         self.ra_conv = ConvModule(
@@ -169,13 +168,40 @@ class ReverseAttention(nn.Module):
     def forward(self, input, mul_op):
         
         out = self.fpn_bottleneck(input)
-        out = -1*(torch.sigmoid(out)) + 1
-        out = out.expand(-1, self.in_channels, -1, -1).mul(mul_op)
-        out = self.ra_conv(out)
+        
+        
+        background = -1*(torch.sigmoid(out)) + 1
+        
+        attn = mul_op * background
+        out = self.ra_conv(attn)
         out = out + input
         return out
     
+class BoundaryAttention(nn.Module):
+    def __init__(self, in_channels, out_channels, conv_cfg, norm_cfg, act_cfg):
+        super().__init__()
+        self.out_channels = out_channels
+        self.in_channels = in_channels
+        self.fpn_bottleneck = ConvModule(
+            self.in_channels, 1,
+            kernel_size=1, padding=0, conv_cfg=conv_cfg, norm_cfg=norm_cfg, act_cfg=act_cfg)
+        
+        self.ra_conv = ConvModule(
+            self.in_channels , self.in_channels, kernel_size=3, padding=1, conv_cfg=conv_cfg, norm_cfg=norm_cfg, act_cfg=act_cfg
+        )
+    def forward(self, input, mul_op):
+        
+        out = self.fpn_bottleneck(input)
+        score = torch.sigmoid(out)
+        
+        #boundary
+        dist = torch.abs(score - 0.5)
+        boundary_att = 1 - (dist / 0.5)
 
+        attn = mul_op * boundary_att
+        out = self.ra_conv(attn)
+        out = out + input
+        return out
 
 class EfficientSELayer(nn.Module):
     def __init__(self,
@@ -356,34 +382,3 @@ class AttentionModule(nn.Module):
     
 
 
-class PSABlock(nn.Module):
-    expansion = 1
-
-    def __init__(self, inplanes, planes, stride=1, downsample=None):
-        super(PSABlock, self).__init__()
-        BN_MOMENTUM = 0.1
-        self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=3, padding=1)
-        self.bn1 = nn.BatchNorm2d(planes, momentum=BN_MOMENTUM)
-        self.relu = nn.ReLU(inplace=True)
-        self.deattn = PSA_p(planes, planes)
-        self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, padding=1)
-        self.bn2 = nn.BatchNorm2d(planes, momentum=BN_MOMENTUM)
-        self.downsample = downsample
-        self.stride = stride
-
-    def forward(self, x):
-        residual = x
-        out = self.conv1(x)
-        out = self.bn1(out)
-        out = self.relu(out)
-        out = self.deattn(out)
-        out = self.conv2(out)
-        out = self.bn2(out)
-
-        if self.downsample is not None:
-            residual = self.downsample(x)
-
-        out = out + residual
-        out = self.relu(out)
-
-        return out

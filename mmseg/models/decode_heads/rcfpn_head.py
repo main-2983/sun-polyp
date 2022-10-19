@@ -5,110 +5,10 @@ import torch
 from .decode_head import BaseDecodeHead
 import numpy as np
 from mmcv.cnn import ConvModule, xavier_init, constant_init
-from .lib.psa import PSA_p
-from mmseg.models.utils import SELayer
-torch.autograd.set_detect_anomaly(True)
+from .lib.psa import PSA_p, PSA_s, PSABlock
+from .lib.axial_attention import AA_kernel
+from .lib.attention import ReverseAttention, BoundaryAttention
 
-
-
-class Attention_block(nn.Module):
-    def __init__(self,F_g,F_l,F_int):
-        super(Attention_block,self).__init__()
-        self.W_g = nn.Sequential(
-            nn.Conv2d(F_g, F_int, kernel_size=1,stride=1,padding=0,bias=True),
-            nn.BatchNorm2d(F_int)
-            )
-        
-        self.W_x = nn.Sequential(
-            nn.Conv2d(F_l, F_int, kernel_size=1,stride=1,padding=0,bias=True),
-            nn.BatchNorm2d(F_int)
-        )
-
-        self.psi = nn.Sequential(
-            nn.Conv2d(F_int, 1, kernel_size=1,stride=1,padding=0,bias=True),
-            nn.BatchNorm2d(1),
-            nn.Sigmoid()
-        )
-        
-        self.relu = nn.ReLU(inplace=True)
-        
-    def forward(self,g,x):
-        g1 = self.W_g(g)
-        x1 = self.W_x(x)
-        psi = self.relu(g1+x1)
-        psi = self.psi(psi)
-
-        return x*psi
-class BNPReLU(nn.Module):
-    def __init__(self, nIn):
-        super().__init__()
-        self.bn = nn.BatchNorm2d(nIn, eps=1e-3)
-        self.acti = nn.ReLU(nIn)
-
-    def forward(self, input):
-        output = self.bn(input)
-        output = self.acti(output)
-
-        return output
-class ScaleBranch(nn.Module):
-
-    def __init__(self, in_channels=256, out_channels=256):
-        super(ScaleBranch, self).__init__()
-        self.in_channels = in_channels
-        self.out_channels = out_channels
-        self.spatialPooling = nn.AdaptiveAvgPool3d((4, 1, 1))
-        self.scalePooling = nn.AdaptiveAvgPool2d(1)
-        self.channel_agg = nn.Conv2d(in_channels, 1, kernel_size=1)
-        self.trans = nn.Conv2d(self.in_channels, self.out_channels, 1)
-
-    def forward(self, x):
-        x = self.spatialPooling(x.permute(0, 2, 1, 3, 4)).reshape(
-            x.size(0), x.size(2), 4, 1)
-        batch, channel, height, width = x.size()
-        channel_context = self.channel_agg(x)
-        channel_context = channel_context.view(batch, 1, height * width)
-        channel_context = F.softmax(channel_context, dim=-1)
-        channel_context = channel_context * height * width
-        channel_context = channel_context.view(batch, 1, height, width)
-        context = self.scalePooling(x * channel_context)
-        context = self.trans(context).unsqueeze(0)
-        return context
-
-
-class SpatialBranch(nn.Module):
-
-    def __init__(self, in_channels=256, out_channels=256):
-        super(SpatialBranch, self).__init__()
-        self.in_channels = in_channels
-        self.out_channels = out_channels
-        self.scalePooling = nn.AvgPool3d((4, 1, 1))
-        self.spatialPooling = nn.AdaptiveAvgPool2d(1)
-        self.channel_agg = nn.Conv2d(in_channels, 1, kernel_size=1)
-        self.trans = nn.Conv2d(self.in_channels, self.out_channels, 1)
-
-    def forward(self, x):
-        x = self.scalePooling(x.permute(0, 2, 1, 3, 4)).squeeze(2)
-        batch, channel, height, width = x.size()
-        channel_context = self.channel_agg(x)
-        channel_context = channel_context.view(batch, 1, height * width)
-        channel_context = F.softmax(channel_context, dim=-1)
-        channel_context = channel_context * height * width
-        channel_context = channel_context.view(batch, 1, height, width)
-        context = self.spatialPooling(x * channel_context)
-        context = self.trans(context).unsqueeze(0)
-        return context
-
-class FSM(nn.Module):
-    def __init__(self, c1, c2):
-        super().__init__()
-        self.conv_atten = nn.Conv2d(c1, c1, 1, bias=False)
-        self.conv = nn.Conv2d(c1, c2, 1, bias=False)
-
-    def forward(self, x):
-        atten = self.conv_atten(F.avg_pool2d(x, x.shape[2:])).sigmoid()
-        feat = torch.mul(x, atten)
-        x = x + feat
-        return self.conv(x)
 class FusionNode(nn.Module):
 
     def __init__(self,
@@ -117,6 +17,7 @@ class FusionNode(nn.Module):
                  with_out_conv=True,
                  out_conv_cfg=None,
                  out_norm_cfg=dict(type='BN', requires_grad=True),
+                 out_conv_order=('act', 'conv', 'norm'),
                  upsample_mode='bilinear',
                  op_num=2,
                  upsample_attn=True):
@@ -135,7 +36,7 @@ class FusionNode(nn.Module):
             self.weight.append(
                 nn.Conv2d(in_channels * 2, 1, kernel_size=1, bias=True))
             constant_init(self.weight[-1], 0)
-            
+
         if self.upsample_attn:
             self.spatial_weight = nn.Conv2d(
                 in_channels * 2, 1, kernel_size=3, padding=1, bias=True)
@@ -151,27 +52,33 @@ class FusionNode(nn.Module):
                 out_channels,
                 kernel_size=3,
                 padding=1,
-                conv_cfg=out_conv_cfg)
+                conv_cfg=out_conv_cfg,
+                norm_cfg=out_norm_cfg,
+                order=('act', 'conv', 'norm'))
         if out_conv_cfg is None or out_conv_cfg['type'] == 'Conv2d':
             for m in self.post_fusion.modules():
                 if isinstance(m, nn.Conv2d):
                     xavier_init(m, distribution='uniform')
-        self.pre_fusion = ConvModule(
-            out_channels,
-            out_channels,
-            kernel_size=3,
-            padding=1,
-            conv_cfg=out_conv_cfg,
-            norm_cfg=out_norm_cfg)
-        if out_conv_cfg is None or out_conv_cfg['type'] == 'Conv2d':
-            for m in self.pre_fusion.modules():
-                if isinstance(m, nn.Conv2d):
-                    xavier_init(m, distribution='uniform')
+
+        if op_num > 2:
+            self.pre_fusion = ConvModule(
+                out_channels,
+                out_channels,
+                kernel_size=3,
+                padding=1,
+                conv_cfg=out_conv_cfg,
+                norm_cfg=out_norm_cfg,
+                order=('act', 'conv', 'norm'))
+            if out_conv_cfg is None or out_conv_cfg['type'] == 'Conv2d':
+                for m in self.pre_fusion.modules():
+                    if isinstance(m, nn.Conv2d):
+                        xavier_init(m, distribution='uniform')
 
     def dynamicFusion(self, x):
         x1, x2 = x[0], x[1]
         batch, channel, height, width = x1.size()
-
+        weight1 = self.gap(x1)
+        weight2 = self.gap(x2)
         if self.upsample_attn:
             upsample_weight = (
                 self.temp * channel**(-0.5) *
@@ -180,13 +87,10 @@ class FusionNode(nn.Module):
                 upsample_weight.reshape(batch, 1, -1), dim=-1).reshape(
                     batch, 1, height, width) * height * width
             x2 = upsample_weight * x2
-            
-        weight1 = self.gap(x1)
-        weight2 = self.gap(x2)
         weight = torch.cat((weight1, weight2), dim=1)
         weight = self.weight[0](weight)
         weight = torch.sigmoid(weight)
-        result = weight * x1 + (1 - weight) * x2        
+        result = weight * x1 + (1 - weight) * x2
         if self.op_num == 3:
             x3 = x[2]
             x1 = self.pre_fusion(result)
@@ -255,34 +159,41 @@ class RPFNHead(BaseDecodeHead):
             self.lateral_convs.append(l_conv)
 
         self.RevFP = nn.ModuleDict()
+        
+        # self.RevFP['p7'] = FusionNode(
+        #     in_channels=self.channels,
+        #     out_channels=self.channels,
+        #     op_num=2, upsample_attn=False)
         self.RevFP['p6'] = FusionNode(
             in_channels=self.channels,
             out_channels=self.channels,
-            op_num=2, upsample_attn=True)
+            op_num=2, upsample_attn=False)
 
         self.RevFP['p5'] = FusionNode(
             in_channels=self.channels,
             out_channels=self.channels,
-            op_num=2, upsample_attn=True)
+            op_num=3, upsample_attn=True)
 
         self.RevFP['p4'] = FusionNode(
             in_channels=self.channels,
             out_channels=self.channels,
-            op_num=2, upsample_attn=True)
+            op_num=3, upsample_attn=True)
 
         self.RevFP['p3'] = FusionNode(
             in_channels=self.channels,
             out_channels=self.channels,
             op_num=2, upsample_attn=True)
         
-        self.psa1 = PSA_p(self.channels, self.channels)
-        self.psa2 = PSA_p(self.channels, self.channels)
-        self.psa3 = PSA_p(self.channels, self.channels)
-        self.psa4 = PSA_p(self.channels, self.channels)
-        
+
+        self.psa1 = PSABlock(self.channels * 4, self.channels * 4)
+        self.psa2 = PSABlock(self.channels, self.channels)
         
         self.fusion_conv = ConvModule(self.channels * 4, self.channels,
                 kernel_size=1, padding=0, norm_cfg=norm_cfg)
+        
+        self.aa_module = AA_kernel(self.channels, self.channels)
+        self.rev_attn = ReverseAttention(self.channels, self.channels, None, self.norm_cfg, None)
+        self.bd_attn = BoundaryAttention(self.channels, self.channels, None, self.norm_cfg, None)
 
     def _resize(self, x, size):
         if x.shape[-2:] == size:
@@ -295,16 +206,16 @@ class RPFNHead(BaseDecodeHead):
                 F.pad(x, [0, w % 2, 0, h % 2], 'replicate'), (2, 2))
             return x
 
-
     def forward(self, inputs):
         """Forward function."""
         # build P3-P5
         inputs = self._transform_inputs(inputs)
-        feats = [
+        laterals = [
             lateral_conv(inputs[i + self.start_level])
             for i, lateral_conv in enumerate(self.lateral_convs)
         ]
-        c3, c4, c5, c6 = feats
+        # laterals.append(self.psp_forward(inputs))
+        c3, c4, c5, c6 = laterals
     
         
 
@@ -314,21 +225,20 @@ class RPFNHead(BaseDecodeHead):
         p5 = self.RevFP['p5']([c5, c6, p4], out_size=c5.shape[-2:])
         p6 = self.RevFP['p6']([c6, p5], out_size=c6.shape[-2:])
 
+
         p4 = self._resize(p4, size=c3.shape[-2:])
         p5 = self._resize(p5, size=c3.shape[-2:])
         p6 = self._resize(p6, size=c3.shape[-2:])
         
-        p6 = self.psa1(p6)
-        p5 = self.psa2(p5)
-        p4 = self.psa3(p4)
-        p3 = self.psa4(p3)
-        
 
+        psa_out = self.psa1(torch.cat([p3,p4,p5,p6], dim=1))
+        output = self.fusion_conv(psa_out)
+        # output = self.psa2(output)
+        # aa_atten = self.aa_module(f_out)
+        # output  = f_out  + aa_atten
+        # output = self.bd_attn(out, out)
+        # output = self.rev_attn(output, output)
         
-        
-        output = self.fusion_conv(torch.cat([p3,p4,p5,p6], dim=1))
-
-        
-
+        # output = rev_out + bound_out
         output = self.cls_seg(output)
         return [output]

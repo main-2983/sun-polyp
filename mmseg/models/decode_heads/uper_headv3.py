@@ -14,7 +14,7 @@ from .lib.bifpn import BiFPN
 from mmseg.models.utils.se_layer import *
 from torch import nn
 from .lib.mlp_osa import MLP_OSA
-from .lib.fem import Uncertain_Boundary
+# from .lib.fem import Uncertain_Boundary
 
 # psp feature instead of last input
 
