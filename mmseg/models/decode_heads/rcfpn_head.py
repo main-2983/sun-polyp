@@ -5,9 +5,8 @@ import torch
 from .decode_head import BaseDecodeHead
 import numpy as np
 from mmcv.cnn import ConvModule, xavier_init, constant_init
-from .lib.psa import PSA_p, PSA_s, PSABlock
-from .lib.axial_attention import AA_kernel
-from .lib.attention import ReverseAttention, BoundaryAttention
+from .lib.psa import PSABlock
+from .lib.fem import FeatureEnhanceModule
 
 class FusionNode(nn.Module):
 
@@ -148,22 +147,19 @@ class RPFNHead(BaseDecodeHead):
         self.lateral_convs = nn.ModuleList()
         for i in range(self.start_level, self.backbone_end_level):
             l_conv = nn.Sequential(
-                # PSA_p(self.in_channels[i], self.in_channels[i]),
-                ConvModule(
-                self.in_channels[i],
-                self.channels,
-                kernel_size=3,
-                padding=1,
-                norm_cfg=norm_cfg),
+                FeatureEnhanceModule(self.in_channels[i], self.channels)
+                # ConvModule(
+                # self.in_channels[i],
+                # self.channels,
+                # kernel_size=3,
+                # padding=1,
+                # norm_cfg=norm_cfg),
             )
             self.lateral_convs.append(l_conv)
 
         self.RevFP = nn.ModuleDict()
         
-        # self.RevFP['p7'] = FusionNode(
-        #     in_channels=self.channels,
-        #     out_channels=self.channels,
-        #     op_num=2, upsample_attn=False)
+
         self.RevFP['p6'] = FusionNode(
             in_channels=self.channels,
             out_channels=self.channels,
@@ -186,14 +182,10 @@ class RPFNHead(BaseDecodeHead):
         
 
         self.psa1 = PSABlock(self.channels * 4, self.channels * 4)
-        self.psa2 = PSABlock(self.channels, self.channels)
         
         self.fusion_conv = ConvModule(self.channels * 4, self.channels,
                 kernel_size=1, padding=0, norm_cfg=norm_cfg)
         
-        self.aa_module = AA_kernel(self.channels, self.channels)
-        self.rev_attn = ReverseAttention(self.channels, self.channels, None, self.norm_cfg, None)
-        self.bd_attn = BoundaryAttention(self.channels, self.channels, None, self.norm_cfg, None)
 
     def _resize(self, x, size):
         if x.shape[-2:] == size:
@@ -233,12 +225,6 @@ class RPFNHead(BaseDecodeHead):
 
         psa_out = self.psa1(torch.cat([p3,p4,p5,p6], dim=1))
         output = self.fusion_conv(psa_out)
-        # output = self.psa2(output)
-        # aa_atten = self.aa_module(f_out)
-        # output  = f_out  + aa_atten
-        # output = self.bd_attn(out, out)
-        # output = self.rev_attn(output, output)
-        
-        # output = rev_out + bound_out
+
         output = self.cls_seg(output)
         return [output]
