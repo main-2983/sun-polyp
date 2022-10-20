@@ -33,6 +33,7 @@ from .ssformer_head import SSFormerHead
 from .ds_ssformer_head import SSFormerHeadDS
 from .pranet_head import PraNetHead
 from .slowcat_head import SlowCatHead
+from .ds_slowcat_head import SlowCatHead_DS
 
 __all__ = [
     'FCNHead', 'PSPHead', 'ASPPHead', 'PSAHead', 'NLHead', 'GCHead', 'CCHead',
@@ -42,5 +43,5 @@ __all__ = [
     'SETRMLAHead', 'DPTHead', 'SETRMLAHead', 'SegmenterMaskTransformerHead',
     'SegformerHead', 'ISAHead', 'STDCHead', 'IterativeDecodeHead',
     'KernelUpdateHead', 'KernelUpdator', 'UperLRCHead', 'SSFormerHeadDS',
-    'PraNetHead', 'SlowCatHead'
+    'PraNetHead', 'SlowCatHead', 'SlowCatHead_DS'
 ]
