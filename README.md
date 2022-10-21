@@ -1,4 +1,5 @@
 # Config
+## English
 Config everything in `mcode/config.py`  
 What to config?
 + Model:
@@ -20,3 +21,12 @@ What to config?
     + `save_path`: path to save checkpoints and logs
     + `bs`: this should be 16 if possible
     + `grad_accumulate_rate`: num iters to backward, if `bs=16`, this should be `1`
+
+## Tiếng Việt
+Config được đặt trong file `mcode/config.py`
+Cần chỉnh sửa config của
++ Mô hình
+    + Dựa trên config của `mmseg`
+    + `pretrained`: đường dẫn tới backbone MiT train với ImageNet
+    + Trong trường `backbone`, đặt `pretrained=pretrained`
+    + Đặt config model head theo nhu cầu
