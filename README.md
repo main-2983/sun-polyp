@@ -35,4 +35,8 @@ Cần chỉnh sửa config của
     + `wandb_key`: dùng key của tài khoản wandb
     + `wandb_name`: Tên thí nghiệm, nên đặt cụ thể
     + `wandb_group`: cần 5 thí nghiệm để tiện theo dõi
-   
++ Dataset:
+    + `train_images`: đường dẫn tới ảnh để train
+    + `train_masks`: đường dẫn tới mask để train
+    + `test_folder`: đường dẫn tới folder train
+    + `test_images` và `test_masks`: không cần đặt
