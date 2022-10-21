@@ -40,3 +40,7 @@ Cần chỉnh sửa config của
     + `train_masks`: đường dẫn tới mask để train
     + `test_folder`: đường dẫn tới folder train
     + `test_images` và `test_masks`: không cần đặt
+    + `num_workers`: số worker xử lí dữ liệu
+    + `save_path`: đường dẫn lưu log và checkpoint
+    + `bs`: hãy đặt 16
+    + `grad_accumulate_rate`: số iter giữa mỗi lần cập nhật tham số, đặt `1` nếu `bs=16`
