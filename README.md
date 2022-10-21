@@ -30,3 +30,9 @@ Cần chỉnh sửa config của
     + `pretrained`: đường dẫn tới backbone MiT train với ImageNet
     + Trong trường `backbone`, đặt `pretrained=pretrained`
     + Đặt config model head theo nhu cầu
++ Wandb:
+    + `use_wandb`: Đặt True để log, đặt False khi debug mô hình
+    + `wandb_key`: dùng key của tài khoản wandb
+    + `wandb_name`: Tên thí nghiệm, nên đặt cụ thể
+    + `wandb_group`: cần 5 thí nghiệm để tiện theo dõi
+   
