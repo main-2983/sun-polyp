@@ -29,11 +29,6 @@ class ReversedAttention(nn.Module):
                            norm_cfg=norm_cfg)
             )
         self.convs = nn.Sequential(*convs)
-        self.pred_conv = ConvModule(channels,
-                                    out_channels=1,
-                                    kernel_size=1,
-                                    norm_cfg=norm_cfg,
-                                    act_cfg=None)
 
     def forward(self, x, y):
         """
@@ -41,6 +36,10 @@ class ReversedAttention(nn.Module):
         Args:
             y: prediction mask (B, 1, H, W)
             x: feature maps
+        Returns:
+            x: will be forwarded to a prediction layer and added with y to output
+            final prediction mask
+            y_res: will be added with x after forwarded to a prediction layer
         """
         assert y.shape[1] == 1, "'y' must be a prediction mask"
         _, c, h, w = x.shape
@@ -53,6 +52,4 @@ class ReversedAttention(nn.Module):
         x = rev_y * x
         x = self.bottleneck(x)
         x = self.convs(x)
-        x_pred = self.pred_conv(x)
-        out = x_pred + y_res
-        return out
+        return x, y_res
