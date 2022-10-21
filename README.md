@@ -1,7 +1,7 @@
 # Config
 ## English
 Config everything in `mcode/config.py`  
-What to config?
+How to config?
 + Model:
     + Follow `mmseg` config
     + `pretrained`: path to ImageNet pretrained MiT backbone
