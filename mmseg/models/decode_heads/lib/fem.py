@@ -15,7 +15,7 @@ class FeatureEnhanceModule(nn.Module):
         self.conv2 = Conv(in_channels, in_channels, kernel_size=3, dilation=3, bn=True, relu=True)
         self.conv3 = Conv(in_channels, in_channels, kernel_size=3, dilation=5, bn=True, relu=True)
         
-        self.fusion = Conv(in_channels * 3, out_channels, kernel_size=1, bn=True, relu=True)
+        self.fusion = Conv(in_channels * 3, out_channels, kernel_size=3, bn=True, relu=True)
         
     def forward(self, inp):
         inp1 = self.conv1(inp)
@@ -34,14 +34,13 @@ class FeatureEnhanceModule2(nn.Module):
         
         self.conv = Conv(in_channels, out_channels, kernel_size=3, dilation=1, bn=True, relu=True)
         
-        self.conv1 = Conv(in_channels, out_channels, kernel_size=3, dilation=3, bn=True, relu=True)
-        self.conv2 = Conv(in_channels, out_channels, kernel_size=3, dilation=5, bn=True, relu=True)
-        self.conv2 = Conv(in_channels, out_channels, kernel_size=3, dilation=7, bn=True, relu=True)
+        self.conv1 = Conv(out_channels, out_channels, kernel_size=3, dilation=3, bn=True, relu=True)
+        self.conv2 = Conv(out_channels, out_channels, kernel_size=3, dilation=5, bn=True, relu=True)
+        self.conv3 = Conv(out_channels, out_channels, kernel_size=3, dilation=7, bn=True, relu=True)
         
-        self.fusion = Conv(in_channels * 3, out_channels, kernel_size=1, bn=True, relu=True)
+        self.fusion = Conv(out_channels * 3, out_channels, kernel_size=1, bn=True, relu=True)
         
     def forward(self, inp):
-        inp = self.bn_relu_1(inp)
         inp = self.conv(inp)
         
         inp1 = self.conv1(inp)

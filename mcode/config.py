@@ -15,10 +15,10 @@ imgaug.random.seed(123)
 # ===============================================================================
 use_wandb = True
 wandb_key = "d0ee13baa7af4379eff80e68b11cf976bbb8d673"
-wandb_project = "Seg-Uper"
+wandb_project = "Polyp-Research"
 wandb_entity = "ssl-online"
 wandb_name = "RFP (1)"
-wandb_group = "RFP baseline"
+wandb_group = "RFP B1"
 wandb_dir = "./wandb"
 
 seed = 2022
