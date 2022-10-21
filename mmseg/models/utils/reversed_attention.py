@@ -44,9 +44,7 @@ class ReversedAttention(nn.Module):
         assert y.shape[1] == 1, "'y' must be a prediction mask"
         _, c, h, w = x.shape
 
-        y_res = resize(input=y,
-                       size=(h, w),
-                       mode='bilinear')
+        y_res = y
         rev_y = -1 * torch.sigmoid(y_res) + 1
         rev_y = rev_y.expand(-1, c, -1, -1)
         x = rev_y * x

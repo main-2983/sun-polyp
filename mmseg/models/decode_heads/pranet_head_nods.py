@@ -1,4 +1,3 @@
-import torch
 import torch.nn as nn
 from mmcv.cnn import ConvModule
 
@@ -10,14 +9,14 @@ from mmseg.models.utils.partial_decoder import PartialDecoder
 from mmseg.models.utils.reversed_attention import ReversedAttention
 
 @HEADS.register_module()
-class PraNetHead(BaseDecodeHead):
+class PraNetHead_S(BaseDecodeHead):
     def __init__(self,
                  rfb_channels=32,
                  revattn_channels=[256, 64, 64],
                  revattn_kernel=[5, 3, 3],
                  revattn_convs=[3, 2, 2],
                  **kwargs):
-        super(PraNetHead, self).__init__(input_transform='multiple_select',
+        super(PraNetHead_S, self).__init__(input_transform='multiple_select',
                                          **kwargs)
 
         num_inputs = len(self.in_channels)
@@ -73,7 +72,8 @@ class PraNetHead(BaseDecodeHead):
             _x = self.aux_pred[i](_x)
             out = _x + y
             outs.append(out) # (/32 -> /16 -> /8)
-        # reverse order to match with SunSegmentor output requirements
-        outs = outs[::-1]
+
+        # we only take the last feature maps (/8 scale) to calculate loss instead of all
+        outs = outs[-1]
 
         return outs
