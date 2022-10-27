@@ -10,10 +10,10 @@ from torch.utils.data import DataLoader
 import numpy as np
 
 from mmseg.models.builder import build_segmentor
+from mmseg.models.losses import StructureLoss
 
 from mcode import ActiveDataset, get_scores, LOGGER, set_seed_everything, set_logging
 from mcode.utils import adjust_lr, clip_gradient
-from mcode.loss import StructureLoss
 from mcode.config import *
 
 
@@ -159,8 +159,9 @@ if __name__ == '__main__':
                 y_hats = model(x)
                 # --- loss function ---
                 losses = []
-                for y_hat in y_hats:
+                for i, y_hat in enumerate(y_hats):
                     loss = loss_fn(y_hat, y)
+                    loss = loss_weights[i] * loss
                     losses.append(loss)
                 losses = sum(_loss for _loss in losses)
                 # --- backward ---
