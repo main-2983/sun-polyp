@@ -14,6 +14,7 @@ from mmseg.models.losses import StructureLoss
 
 from mcode import ActiveDataset, get_scores, LOGGER, set_seed_everything, set_logging
 from mcode.utils import adjust_lr, clip_gradient
+from mcode.label_assignment import label_assignment, strategy_1
 from mcode.config import *
 
 
@@ -157,9 +158,13 @@ if __name__ == '__main__':
                                    mode='bilinear', align_corners=True)
                 # --- forward ---
                 y_hats = model(x)
+                # --- get targets ---
+                targets = label_assignment(y_hats, y, strategy_1, num_outs=3)
                 # --- loss function ---
                 losses = []
-                for i, y_hat in enumerate(y_hats):
+                if len(loss_weights) == 1:
+                    loss_weights = loss_weights * len(y_hats)
+                for i, (y_hat, y) in enumerate(zip(y_hats, targets)):
                     loss = loss_fn(y_hat, y)
                     loss = loss_weights[i] * loss
                     losses.append(loss)
