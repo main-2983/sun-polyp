@@ -46,3 +46,17 @@ def strategy_2(preds: list[torch.Tensor], target: torch.Tensor=None, num_outs=3,
             aux_targets.append(pred)
         targets.extend(aux_targets)
         return targets
+
+
+@torch.no_grad()
+def strategy_3(preds: list[torch.Tensor], target:torch.Tensor=None, num_outs=3):
+    targets = []
+    targets.append(target)
+    aux_targets = []
+    for i in range(num_outs):
+        pred = preds[i]
+        pred = pred.sigmoid()
+        pred = (pred - pred.min()) / (pred.max() - pred.min() + 1e-8)
+        aux_targets.append(pred)
+    targets.extend(aux_targets)
+    return targets
