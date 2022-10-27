@@ -8,6 +8,7 @@ import cv2
 
 from .utils import select_device
 from .metrics import AverageMeter
+from .label_assignment import *
 
 
 # config
@@ -68,6 +69,7 @@ val_transform = A.Compose([
     ToTensorV2(),
 ])
 
+strategy = None # default to None
 pretrained = 'https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-res2net/res2net50_26w_4s-06e79181.pth'
 model_cfg = dict(
     type='SunSegmentor',

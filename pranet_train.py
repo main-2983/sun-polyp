@@ -159,7 +159,7 @@ if __name__ == '__main__':
                 # --- forward ---
                 y_hats = model(x)
                 # --- get targets ---
-                targets = label_assignment(y_hats, y, strategy_1, num_outs=3)
+                targets = label_assignment(y_hats, y, strategy, num_outs=3)
                 # --- loss function ---
                 losses = []
                 if len(loss_weights) == 1:
