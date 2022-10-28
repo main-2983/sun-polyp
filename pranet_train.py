@@ -14,7 +14,6 @@ from mmseg.models.losses import StructureLoss
 
 from mcode import ActiveDataset, get_scores, LOGGER, set_seed_everything, set_logging
 from mcode.utils import adjust_lr, clip_gradient
-from mcode.label_assignment import label_assignment, strategy_1
 from mcode.config import *
 
 
@@ -159,6 +158,7 @@ if __name__ == '__main__':
                 # --- forward ---
                 y_hats = model(x)
                 # --- get targets ---
+                #strategy_kwargs['cur_ep'] = ep # uncomment this if not strategy 2
                 targets = label_assignment(y_hats, y, strategy, **strategy_kwargs)
                 # --- loss function ---
                 losses = []
@@ -179,7 +179,7 @@ if __name__ == '__main__':
                 pred_mask = (y_hat_mask > 0.5).float()
 
                 train_loss_meter.update(loss.item(), n)
-                tp, fp, fn, tn = smp.metrics.get_stats(pred_mask.long(), y.long(), mode="binary")
+                tp, fp, fn, tn = smp.metrics.get_stats(pred_mask.long(), targets[0].long(), mode="binary")
                 per_image_iou = smp.metrics.iou_score(tp, fp, fn, tn, reduction="micro-imagewise")
                 dataset_iou = smp.metrics.iou_score(tp, fp, fn, tn, reduction="micro")
                 iou_meter.update(per_image_iou, n)
