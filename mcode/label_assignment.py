@@ -100,3 +100,25 @@ def strategy_5(preds: list[torch.Tensor], target: torch.Tensor=None, num_outs=3,
             aux_targets.append(pred)
         targets.extend(aux_targets)
         return targets
+
+
+@torch.no_grad()
+def mstrategy_2(preds: list[torch.Tensor], target: torch.Tensor, weights: list, num_outs=3,
+               cur_ep=None, total_eps=20, frac=0.8):
+    ep_to_change = int(total_eps * frac)
+    if cur_ep <= ep_to_change:
+        weights = weights
+        targets = [target] * len(preds)
+        return targets, weights
+    else:
+        weights = [1.5, 1.0, 1.0, 1.0]
+        targets = []
+        targets.append(target)
+        aux_targets = []
+        for i in range(num_outs):
+            pred = preds[0]
+            pred = pred.sigmoid()
+            pred = (pred - pred.min()) / (pred.max() - pred.min() + 1e-8)
+            aux_targets.append(pred)
+        targets.extend(aux_targets)
+        return targets, weights
