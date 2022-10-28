@@ -60,3 +60,17 @@ def strategy_3(preds: list[torch.Tensor], target:torch.Tensor=None, num_outs=3):
         aux_targets.append(pred)
     targets.extend(aux_targets)
     return targets
+
+
+@torch.no_grad()
+def strategy_4(preds: list[torch.Tensor], target: torch.Tensor=None, num_outs=3):
+    targets = []
+    targets.append(target)
+    aux_targets = []
+    for i in range(num_outs):
+        pred = preds[0]
+        pred = pred.sigmoid()
+        pred = (pred > 0.5).float()
+        aux_targets.append(pred)
+    targets.extend(aux_targets)
+    return targets
