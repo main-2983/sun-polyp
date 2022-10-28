@@ -11,6 +11,7 @@ from mmseg.ops import resize
 class SSFormerHeadDS(BaseDecodeHead):
     def __init__(self,
                  interpolate_mode='bilinear',
+                 num_aux_convs=2,
                  **kwargs):
         super().__init__(input_transform='multiple_select', **kwargs)
 
@@ -55,9 +56,20 @@ class SSFormerHeadDS(BaseDecodeHead):
         # construct 3 aux heads
         self.aux_cls_seg = nn.ModuleList()
         for i in range(num_inputs - 1):
-            self.aux_cls_seg.append(
-                nn.Conv2d(self.channels, self.num_classes, 1)
-            )
+            aux_convs = []
+            for i in range(num_aux_convs):
+                aux_convs.append(
+                    ConvModule(
+                        in_channels=self.channels,
+                        out_channels=self.channels,
+                        kernel_size=3,
+                        padding=1,
+                        norm_cfg=self.norm_cfg,
+                        act_cfg=self.act_cfg
+                    )
+                )
+            aux_convs.append(nn.Conv2d(self.channels, 1, 1))
+            self.aux_cls_seg.append(nn.Sequential(*aux_convs))
 
     def forward(self, inputs):
         # Receive 4 stage backbone feature map: 1/4, 1/8, 1/16, 1/32
