@@ -131,6 +131,11 @@ if __name__ == '__main__':
     # optimizer
     optimizer = torch.optim.Adam(model.parameters(), 1e-4)
 
+    # label visualize
+    label_vis_hook = LabelVis(model, save_path)
+    # --- before train hooks ---
+    label_vis_hook.before_train(train_dataset)
+
     for ep in range(1, n_eps + 1):
         # this fucking line literally do nothing ????????????????
         adjust_lr(optimizer, 1e-4, ep, 0.1, 50)
@@ -184,6 +189,11 @@ if __name__ == '__main__':
                 dataset_iou = smp.metrics.iou_score(tp, fp, fn, tn, reduction="micro")
                 iou_meter.update(per_image_iou, n)
                 dice_meter.update(dataset_iou, n)
+
+            # --- after train iter hooks ---
+            label_vis_hook.after_train_iter(batch_id, ep, strategy_kwargs)
+        # --- after train epoch hooks ---
+        label_vis_hook.after_train_epoch(ep, strategy_kwargs)
 
         LOGGER.info(
             "EP {} TRAIN: LOSS = {}, avg_dice = {}, avg_iou = {}".format(ep, train_loss_meter.avg, dice_meter.avg,
