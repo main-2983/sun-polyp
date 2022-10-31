@@ -182,6 +182,7 @@ if __name__ == '__main__':
                 # --- evaluate on train dataset ---
                 y_hat_mask = y_hats[0].sigmoid()
                 pred_mask = (y_hat_mask - y_hat_mask.min()) / (y_hat_mask.max() - y_hat_mask.min() + 1e-8)
+                pred_mask = pred_mask.round()
 
                 train_loss_meter.update(loss.item(), n)
                 tp, fp, fn, tn = smp.metrics.get_stats(pred_mask.long(), targets[0].long(), mode="binary")
