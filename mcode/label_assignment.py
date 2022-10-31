@@ -21,7 +21,7 @@ class LabelVis:
         self.img_idxs = [i for i in range(num_samples)]
         if img_names is not None:
             self.img_names = img_names
-        assert type in ['iter', 'epoch']
+        assert type in ['iter', 'epoch', None]
         self.type = type
         self.rate = rate
 
