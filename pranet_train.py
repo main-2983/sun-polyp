@@ -132,7 +132,7 @@ if __name__ == '__main__':
     optimizer = torch.optim.Adam(model.parameters(), 1e-4)
 
     # label visualize
-    label_vis_hook = LabelVis(model, save_path)
+    label_vis_hook = LabelVis(model, save_path, strategy=strategy, **label_vis_kwargs)
     # --- before train hooks ---
     label_vis_hook.before_train(train_dataset)
 
@@ -163,7 +163,7 @@ if __name__ == '__main__':
                 # --- forward ---
                 y_hats = model(x)
                 # --- get targets ---
-                #strategy_kwargs['cur_ep'] = ep # uncomment this if not strategy 2
+                strategy_kwargs['cur_ep'] = ep # uncomment this if not strategy 2
                 targets = label_assignment(y_hats, y, strategy, **strategy_kwargs)
                 # --- loss function ---
                 losses = []
