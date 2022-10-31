@@ -11,6 +11,7 @@ class LabelVis:
                  save_path,
                  strategy=None,
                  num_samples=3,
+                 img_names: list=None,
                  type='iter',
                  rate=5):
         self.model = model
@@ -18,6 +19,8 @@ class LabelVis:
         self.strategy = strategy
         self.num_samples = num_samples
         self.img_idxs = [i for i in range(num_samples)]
+        if img_names is not None:
+            self.img_names = img_names
         assert type in ['iter', 'epoch']
         self.type = type
         self.rate = rate
@@ -27,6 +30,13 @@ class LabelVis:
         os.makedirs(self.save_path, exist_ok=True)
         self.images = []
         self.labels = []
+        if self.img_names is not None:
+            self.img_idxs = []
+            for i in range(len(dataset)):
+                sample = dataset.images[i]
+                img_name = os.path.basename(sample)
+                if img_name in self.img_names:
+                    self.img_idxs.append(i)
         for idx in self.img_idxs:
             sample = dataset[idx]
             self.images.append(sample['image'])
