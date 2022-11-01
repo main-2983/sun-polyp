@@ -8,6 +8,7 @@ import cv2
 
 from .utils import select_device
 from .metrics import AverageMeter
+from label_assignment import *
 
 
 # config
@@ -54,7 +55,7 @@ focal_loss = smp.losses.FocalLoss(smp.losses.BINARY_MODE)
 dice_loss = smp.losses.DiceLoss(smp.losses.BINARY_MODE)
 bce_loss = smp.losses.SoftBCEWithLogitsLoss()
 loss_fns = [bce_loss, dice_loss]
-loss_weights = [0.8, 0.2]
+loss_weights = [[0.5, 0.5]]
 
 train_transform = A.Compose([
     A.HorizontalFlip(p=0.5),
@@ -73,6 +74,14 @@ val_transform = A.Compose([
     A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
     ToTensorV2(),
 ])
+
+strategy = None # default to None
+strategy_kwargs = {
+
+}
+label_vis_kwargs = {
+    'type': None
+}
 
 pretrained = "/mnt/sdd/nguyen.van.quan/BKAI-kaggle/pretrained/mit_b1_mmseg.pth"
 model_cfg = dict(
