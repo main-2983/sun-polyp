@@ -257,7 +257,7 @@ def mstrategy_2(preds: List[torch.Tensor], target: torch.Tensor, weights: List, 
 
 @torch.no_grad()
 def fix_strategy_2(preds: List[torch.Tensor], target: torch.Tensor=None, num_outs=3,
-                   cur_ep=None, total_eps=20, frac=0.0):
+                   cur_ep=None, total_eps=20, frac=0.8):
     def _norm_single(pred: torch.Tensor):
         """ Normalize on single tensor in batch  """
         pred = (pred - pred.min()) / (pred.max() - pred.min() + 1e-8)
