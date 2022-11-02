@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 
 import torch
 
+from .utils import multi_apply
+
 
 class LabelVis:
     def __init__(self,
@@ -251,3 +253,29 @@ def mstrategy_2(preds: List[torch.Tensor], target: torch.Tensor, weights: List, 
             aux_targets.append(pred)
         targets.extend(aux_targets)
         return targets, weights
+
+
+@torch.no_grad()
+def fix_strategy_2(preds: List[torch.Tensor], target: torch.Tensor=None, num_outs=3,
+                   cur_ep=None, total_eps=20, frac=0.0):
+    def _norm_single(pred: torch.Tensor):
+        """ Normalize on single tensor in batch  """
+        pred = (pred - pred.min()) / (pred.max() - pred.min() + 1e-8)
+        return pred.unsqueeze(0)
+
+    ep_to_change = int(total_eps * frac)
+    if cur_ep <= ep_to_change:
+        targets = [target] * len(preds)
+        return targets
+    else:
+        targets = []
+        targets.append(target)
+        aux_targets = []
+        for i in range(num_outs):
+            pred = preds[0]
+            aux_target = pred.sigmoid()
+            aux_target = multi_apply(_norm_single, aux_target)[0]
+            aux_target = torch.stack(aux_target)
+            aux_targets.append(aux_target)
+        targets.extend(aux_targets)
+        return targets
