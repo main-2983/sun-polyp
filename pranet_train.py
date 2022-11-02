@@ -139,8 +139,8 @@ if __name__ == '__main__':
         optimizer.load_state_dict(checkpoint['optim_state_dict'])
         start_ep = checkpoint['epoch']
 
-    # validate to check if checkpoint is correctly loaded
-    iou, dice = full_val(model, start_ep - 1)
+        # validate to check if checkpoint is correctly loaded
+        iou, dice = full_val(model, start_ep - 1)
 
     # label visualize
     label_vis_hook = LabelVis(model, save_path, strategy=strategy, **label_vis_kwargs)
