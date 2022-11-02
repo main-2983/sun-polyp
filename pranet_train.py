@@ -131,12 +131,20 @@ if __name__ == '__main__':
     # optimizer
     optimizer = torch.optim.Adam(model.parameters(), 1e-4)
 
+    # resume from checkpoint
+    start_ep = 1
+    if resume_ckpt is not None:
+        checkpoint = torch.load(resume_ckpt, map_location=device)
+        model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optim_state_dict'])
+        start_ep = checkpoint['epoch']
+
     # label visualize
     label_vis_hook = LabelVis(model, save_path, strategy=strategy, **label_vis_kwargs)
     # --- before train hooks ---
     label_vis_hook.before_train(train_dataset)
 
-    for ep in range(1, n_eps + 1):
+    for ep in range(start_ep, n_eps + 1):
         # this fucking line literally do nothing ????????????????
         adjust_lr(optimizer, 1e-4, ep, 0.1, 50)
 
@@ -210,15 +218,17 @@ if __name__ == '__main__':
             wandb.log({'train_dice': dice_meter.avg,
                        'epoch': ep})
         if ep >= save_ckpt_ep:
-            torch.save(model.state_dict(), f"{save_path}/checkpoints/model_{ep}.pth")
+            save_dict = {
+                'epoch': ep,
+                'model_state_dict': model.state_dict(),
+                'optim_state_dict': optimizer.state_dict()
+            }
+            torch.save(save_dict, f"{save_path}/checkpoints/model_{ep}.pth")
 
         if ep >= val_ep:
             # val model
             with torch.no_grad():
                 iou, dice = full_val(model, ep)
-                if (dice > best):
-                    torch.save(model.state_dict(), f"{save_path}/checkpoints/best.pth")
-                    best = dice
 
             print("================================\n")
 
