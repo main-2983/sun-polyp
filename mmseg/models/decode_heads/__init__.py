@@ -36,6 +36,7 @@ from .slowcat_head import SlowCatHead
 from .ds_slowcat_head import SlowCatHead_DS
 from .pranet_head_nods import PraNetHead_S
 from .pranet_strong_head import SPraNetHead
+from .ds_segformer_head import SegformerHeadDS
 
 __all__ = [
     'FCNHead', 'PSPHead', 'ASPPHead', 'PSAHead', 'NLHead', 'GCHead', 'CCHead',
@@ -46,5 +47,5 @@ __all__ = [
     'SegformerHead', 'ISAHead', 'STDCHead', 'IterativeDecodeHead',
     'KernelUpdateHead', 'KernelUpdator', 'UperLRCHead', 'SSFormerHeadDS',
     'PraNetHead', 'SlowCatHead', 'SlowCatHead_DS', 'PraNetHead_S',
-    'SPraNetHead'
+    'SPraNetHead', 'SegformerHeadDS'
 ]
