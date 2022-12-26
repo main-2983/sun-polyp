@@ -38,7 +38,7 @@ class LAPHead_v2_1(BaseDecodeHead):
         for i in range(num_inputs - 1):
             self.linear_projections.append(
                 ConvModule(
-                    in_channels=self.channels * 2 if self.ops == 'cat' else self.channels,
+                    in_channels=self.channels * 2,
                     out_channels=self.channels,
                     kernel_size=1,
                     stride=1,
@@ -85,10 +85,7 @@ class LAPHead_v2_1(BaseDecodeHead):
             else:
                 x1 = _out
                 x2 = _inputs[idx - 1]
-            if self.ops == 'cat':
-                x = torch.cat([x1, x2], dim=1)
-            else:
-                x = x1 + x2
+            x = torch.cat([x1, x2], dim=1)
             _out = linear_prj(x)
             outs.append(_out)
 
