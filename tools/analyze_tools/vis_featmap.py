@@ -17,9 +17,9 @@ AVG = False
 ckpt_path = "ckpts/LAPFormer-B1.pth"
 image_path = "Dataset/TestDataset/CVC-300/images/151.png"
 mask_path = "Dataset/TestDataset/CVC-300/masks/151.png"
-save_path = None
+save_path = "visualize/lapformer/se_module.png"
 target_layer = "model.decode_head.se_module"
-num_chans = 128
+num_chans = None
 transform = A.Compose([
     A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
     ToTensorV2(),
@@ -68,8 +68,10 @@ if __name__ == '__main__':
     model.eval()
 
     # register hook
-    layer = eval(target_layer)
-    hook = IOHook(layer)
+    hook = None
+    if target_layer is not None:
+        layer = eval(target_layer)
+        hook = IOHook(layer)
 
     image = cv2.imread(image_path)
     image = cv2.resize(image, (352, 352))[:, :, ::-1]
@@ -81,14 +83,17 @@ if __name__ == '__main__':
     img = img[None].to(device)
 
     with torch.no_grad():
-        model(img)
-        feat_maps = hook.output
+        feat_maps = model(img)
+        if hook is not None:
+            feat_maps = hook.output
         if AVG:
             feat_maps = torch.mean(feat_maps, dim=1, keepdim=True)
         feat_maps = feat_maps.cpu().numpy()
     _, c, _, _ = feat_maps.shape
     print(f"Feature maps shape: {feat_maps.shape}")
-    nrows, ncols = int(np.sqrt(num_chans)) or int(np.sqrt(c)), int(np.sqrt(num_chans)) or int(np.sqrt(c))
+    nrows, ncols = int(np.sqrt(c)), int(np.sqrt(c))
+    if num_chans is not None:
+        nrows, ncols = int(np.sqrt(num_chans)), int(np.sqrt(num_chans))
 
     if not AVG:
         num_c = 0
