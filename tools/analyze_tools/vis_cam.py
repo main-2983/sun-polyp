@@ -1,3 +1,5 @@
+import sys
+
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
@@ -5,7 +7,7 @@ import albumentations as A
 from albumentations.pytorch import ToTensorV2
 
 import torch
-from pytorch_grad_cam import EigenCAM, GradCAM, AblationCAM
+from pytorch_grad_cam import GradCAM, AblationCAM
 from pytorch_grad_cam.utils.image import show_cam_on_image
 
 from mmseg.models.builder import build_segmentor
@@ -13,9 +15,11 @@ from mmseg.models.builder import build_segmentor
 from mcode import select_device, UnNormalize
 
 # config
-ckpt_path = "../../logs/MLPOSA_v5/model_50.pth"
-image_path = "../../../Dataset/polyp/TestDataset/CVC-300/images/150.png"
-mask_path = "../../../Dataset/polyp/TestDataset/CVC-300/masks/150.png"
+ckpt_path = "ckpts/LAPFormer-B1.pth"
+image_path = "Dataset/TestDataset/CVC-300/images/151.png"
+mask_path = "Dataset/TestDataset/CVC-300/masks/151.png"
+print_model = False
+method = GradCAM
 transform = A.Compose([
     A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
     ToTensorV2(),
@@ -40,7 +44,7 @@ model_cfg = dict(
         drop_path_rate=0.1,
         pretrained=None),
     decode_head=dict(
-        type='MLP_OSAHead_v5',
+        type='LAPFormerHead',
         ops='cat',
         in_channels=[64, 128, 320, 512],
         in_index=[0, 1, 2, 3],
@@ -52,7 +56,7 @@ model_cfg = dict(
         loss_decode=dict(type='CrossEntropyLoss', use_sigmoid=True, loss_weight=1.0))
 )
 target_layers = [
-    "model.decode_head.linear_projections[0]"
+    "model.decode_head.convs[2]"
 ]
 
 
@@ -88,6 +92,10 @@ if __name__ == '__main__':
     model.to(device)
     model.eval()
 
+    if print_model:
+        print(model)
+        sys.exit()
+
     target_layers = [eval(target_layer) for target_layer in target_layers]
 
     image = cv2.imread(image_path)
@@ -106,10 +114,11 @@ if __name__ == '__main__':
         pred = res.round()
 
     targets = [SemanticSegmentationTarget(pred)]
-    with GradCAM(model=model,
-                 target_layers=target_layers,
-                 use_cuda=torch.cuda.is_available(),
-                 reshape_transform=reshape_transform) as cam:
+    with method(
+            model=model,
+            target_layers=target_layers,
+            use_cuda=torch.cuda.is_available(),
+            reshape_transform=reshape_transform) as cam:
         grayscale_cam = cam(input_tensor=img,
                             targets=targets)[0, :]
         cam_image = show_cam_on_image(image / 255, grayscale_cam, use_rgb=True, image_weight=0.8)
