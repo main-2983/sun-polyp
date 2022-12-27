@@ -1,3 +1,20 @@
+# Installation 
+## Install pytorch
+- Version: 1.10.1 (recommended)  
+`conda install pytorch==1.10.1 torchvision==0.11.2 torchaudio==0.10.1 cudatoolkit=11.3 -c pytorch -c conda-forge`
+## Install MMSegmentation
+- Install openmim: `pip install openmim`
+- Install mmcv: `mim install mmcv-full==1.6.0`
+- Install mmseg:
+```python
+cd sun-polyp
+pip install -v -e .
+```
+## Install dependencies
+- Install wandb (for logging): `pip install wandb`
+- Install pytorch-lightning: `pip install pytorch-lightning`
+- Install segmentation model pytorch: `pip install segmentation-models-pytorch`
+
 # Config
 Config everything in `mcode/config.py`  
 What to config?
