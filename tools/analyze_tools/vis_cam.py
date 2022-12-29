@@ -1,4 +1,5 @@
 import sys
+import os
 
 import cv2
 import numpy as np
@@ -15,10 +16,12 @@ from mmseg.models.builder import build_segmentor
 from mcode import select_device, UnNormalize
 
 # config
-ckpt_path = "ckpts/LAPFormer-B1.pth"
-image_path = "Dataset/TestDataset/CVC-300/images/151.png"
-mask_path = "Dataset/TestDataset/CVC-300/masks/151.png"
+ckpt_path = "ckpts/v2(2).pth"
+image_path = "Dataset/TestDataset/CVC-300/images/159.png"
+mask_path = "Dataset/TestDataset/CVC-300/masks/159.png"
 print_model = False
+save_path = "runs/cam/V2(2)"
+show = True
 method = GradCAM
 transform = A.Compose([
     A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
@@ -44,8 +47,7 @@ model_cfg = dict(
         drop_path_rate=0.1,
         pretrained=None),
     decode_head=dict(
-        type='LAPFormerHead',
-        ops='cat',
+        type='LAPHead_v2_2',
         in_channels=[64, 128, 320, 512],
         in_index=[0, 1, 2, 3],
         channels=256,
@@ -56,7 +58,7 @@ model_cfg = dict(
         loss_decode=dict(type='CrossEntropyLoss', use_sigmoid=True, loss_weight=1.0))
 )
 target_layers = [
-    "model.decode_head.convs[2]"
+    "model.decode_head.ppm[3]"
 ]
 
 
@@ -96,7 +98,7 @@ if __name__ == '__main__':
         print(model)
         sys.exit()
 
-    target_layers = [eval(target_layer) for target_layer in target_layers]
+    _target_layers = [eval(target_layer) for target_layer in target_layers]
 
     image = cv2.imread(image_path)
     image = cv2.resize(image, (352, 352))[:, :, ::-1]
@@ -116,7 +118,7 @@ if __name__ == '__main__':
     targets = [SemanticSegmentationTarget(pred)]
     with method(
             model=model,
-            target_layers=target_layers,
+            target_layers=_target_layers,
             use_cuda=torch.cuda.is_available(),
             reshape_transform=reshape_transform) as cam:
         grayscale_cam = cam(input_tensor=img,
@@ -129,4 +131,11 @@ if __name__ == '__main__':
         plt.imshow(np.repeat(np.expand_dims(pred, axis=-1), repeats=3, axis=-1))
         plt.subplot(1, 3, 3)
         plt.imshow(np.repeat(np.expand_dims(gt_mask, axis=-1), repeats=3, axis=-1))
-        plt.show()
+
+        if save_path is not None:
+            if not os.path.exists(save_path):
+                os.makedirs(save_path, exist_ok=True)
+            plt.savefig(f"{save_path}/{str(target_layers)}.jpg")
+
+        if show:
+            plt.show()

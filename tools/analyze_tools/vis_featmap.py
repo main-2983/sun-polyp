@@ -1,3 +1,5 @@
+import os
+
 import cv2
 import numpy as np
 import matplotlib.pyplot as plt
@@ -14,11 +16,12 @@ from torch_hooks import IOHook
 
 # config
 AVG = False
-ckpt_path = "ckpts/LAPFormer-B1.pth"
-image_path = "Dataset/TestDataset/CVC-300/images/151.png"
-mask_path = "Dataset/TestDataset/CVC-300/masks/151.png"
-save_path = "visualize/lapformer/se_module.png"
-target_layer = "model.decode_head.se_module"
+ckpt_path = "ckpts/v2(2).pth"
+image_path = "Dataset/TestDataset/CVC-300/images/157.png"
+mask_path = "Dataset/TestDataset/CVC-300/masks/157.png"
+save_path = "runs/featmap/v2(2)/ppm"
+target_layer = None
+input = False
 num_chans = None
 transform = A.Compose([
     A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
@@ -44,8 +47,8 @@ model_cfg = dict(
         drop_path_rate=0.1,
         pretrained=None),
     decode_head=dict(
-        type='LAPFormerHead',
-        ops='cat',
+        type='LAPHead_v2_2',
+        pool_scales=(1, 2, 3, 6),
         in_channels=[64, 128, 320, 512],
         in_index=[0, 1, 2, 3],
         channels=256,
@@ -85,7 +88,10 @@ if __name__ == '__main__':
     with torch.no_grad():
         feat_maps = model(img)
         if hook is not None:
-            feat_maps = hook.output
+            if not input:
+                feat_maps = hook.output
+            else:
+                feat_maps = hook.input[0]
         if AVG:
             feat_maps = torch.mean(feat_maps, dim=1, keepdim=True)
         feat_maps = feat_maps.cpu().numpy()
@@ -108,5 +114,16 @@ if __name__ == '__main__':
         plt.imshow(feat_maps[0, 0])
         plt.axis('off')
     if save_path is not None:
-        plt.savefig(f"{save_path}")
+        if not os.path.exists(save_path):
+            os.makedirs(save_path, exist_ok=True)
+        if not AVG:
+            if not input:
+                plt.savefig(f"{save_path}/{target_layer}.jpg")
+            else:
+                plt.savefig(f"{save_path}/{target_layer}_inp.jpg")
+        else:
+            if not input:
+                plt.savefig(f"{save_path}/{target_layer}_avg.jpg")
+            else:
+                plt.savefig(f"{save_path}/{target_layer}_avg_inp.jpg")
     plt.show()
