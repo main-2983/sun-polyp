@@ -30,7 +30,7 @@ from .stdc_head import STDCHead
 from .uper_head import UPerHead
 from .uper_LRC_head import UperLRCHead
 from .lapformer_head import LAPFormerHead
-from .lap_headv2 import LAPHead_v2_1, LAPHead_v2_2
+from .lap_headv2 import LAPHead_v2_1, LAPHead_v2_2, LAPHead_v2_3
 
 __all__ = [
     'FCNHead', 'PSPHead', 'ASPPHead', 'PSAHead', 'NLHead', 'GCHead', 'CCHead',
@@ -40,5 +40,5 @@ __all__ = [
     'SETRMLAHead', 'DPTHead', 'SETRMLAHead', 'SegmenterMaskTransformerHead',
     'SegformerHead', 'ISAHead', 'STDCHead', 'IterativeDecodeHead',
     'KernelUpdateHead', 'KernelUpdator', 'UperLRCHead', 'LAPFormerHead',
-    'LAPHead_v2_1', 'LAPHead_v2_2'
+    'LAPHead_v2_1', 'LAPHead_v2_2', 'LAPHead_v2_3'
 ]
