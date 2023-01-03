@@ -528,13 +528,13 @@ class LAPHead_v2_4(BaseDecodeHead):
         out = self.fusion_conv(out)
         out = resize(
             input=out,
-            size=_inputs[0].shape[2:],
+            size=inputs[0].shape[2:],
             mode=self.interpolate_mode,
             align_corners=self.align_corners
         )
 
         # perform identity mapping
-        out = outs[-1] + out
+        out = inputs[0] + out
 
         out = self.cls_seg(out)
 
