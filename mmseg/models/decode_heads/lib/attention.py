@@ -154,54 +154,29 @@ class LayerAttention(nn.Module):
 
         
 class ReverseAttention(nn.Module):
-    def __init__(self, in_channels, out_channels, conv_cfg, norm_cfg, act_cfg):
+    def __init__(self, in_channels, out_channels):
         super().__init__()
         self.out_channels = out_channels
         self.in_channels = in_channels
-        self.fpn_bottleneck = ConvModule(
-            self.in_channels, 1,
-            kernel_size=1, padding=0, conv_cfg=conv_cfg, norm_cfg=norm_cfg, act_cfg=act_cfg)
-        
-        self.ra_conv = ConvModule(
-            self.in_channels , self.in_channels, kernel_size=3, padding=1, conv_cfg=conv_cfg, norm_cfg=norm_cfg, act_cfg=act_cfg
-        )
     def forward(self, input, mul_op):
-        
-        out = self.fpn_bottleneck(input)
-        
-        
-        background = -1*(torch.sigmoid(out)) + 1
-        
+        background = -1*(torch.sigmoid(input)) + 1
         attn = mul_op * background
-        out = self.ra_conv(attn)
-        out = out + input
-        return out
+        return attn
     
 class BoundaryAttention(nn.Module):
-    def __init__(self, in_channels, out_channels, conv_cfg, norm_cfg, act_cfg):
+    def __init__(self, in_channels, out_channels):
         super().__init__()
         self.out_channels = out_channels
         self.in_channels = in_channels
-        self.fpn_bottleneck = ConvModule(
-            self.in_channels, 1,
-            kernel_size=1, padding=0, conv_cfg=conv_cfg, norm_cfg=norm_cfg, act_cfg=act_cfg)
-        
-        self.ra_conv = ConvModule(
-            self.in_channels , self.in_channels, kernel_size=3, padding=1, conv_cfg=conv_cfg, norm_cfg=norm_cfg, act_cfg=act_cfg
-        )
+
     def forward(self, input, mul_op):
         
-        out = self.fpn_bottleneck(input)
-        score = torch.sigmoid(out)
-        
-        #boundary
+        score = torch.sigmoid(input)
         dist = torch.abs(score - 0.5)
         boundary_att = 1 - (dist / 0.5)
 
         attn = mul_op * boundary_att
-        out = self.ra_conv(attn)
-        out = out + input
-        return out
+        return attn
 
 class EfficientSELayer(nn.Module):
     def __init__(self,

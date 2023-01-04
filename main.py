@@ -4,7 +4,6 @@ from tabulate import tabulate
 import logging
 import os
 
-import torch.nn.functional as F
 from torch.utils.data import DataLoader
 import numpy as np
 
@@ -46,7 +45,7 @@ def full_val(model):
             gt = np.asarray(gt, np.float32)
             image = image.to(device)
 
-            res = model(image)[0]
+            res = model(image)
             # res = F.interpolate(res, size=gt.shape, mode='bilinear', align_corners=False)
             res = res.sigmoid().data.cpu().numpy().squeeze()
             res = (res - res.min()) / (res.max() - res.min() + 1e-8)
@@ -61,6 +60,8 @@ def full_val(model):
             wandb.log({f'{dataset_name}_iou': mean_iou})
         table.append([dataset_name, mean_iou, mean_dice])
     table.append(['Total', ious.avg, dices.avg])
+    if use_wandb:
+        wandb.log({f'Total_dice': dices.avg})
 
     print(tabulate(table, headers=headers, tablefmt="fancy_grid"))
     with open(f"{save_path}/exp.log", 'a') as f:
@@ -84,7 +85,6 @@ if __name__ == '__main__':
     set_seed_everything(seed)
     if use_wandb:
         assert wandb_group is not None, "Please specify wandb group"
-        wandb.login(key=wandb_key)
         wandb.init(
             project=wandb_project,
             entity=wandb_entity,
@@ -94,7 +94,7 @@ if __name__ == '__main__':
             settings=wandb.Settings(code_dir="mmseg/models/decode_heads/"),
             config={"architecture":"RFP with 5 nodes"}
         )
-
+    
     # model
     model = build_segmentor(model_cfg)
     model.init_weights()
@@ -146,10 +146,11 @@ if __name__ == '__main__':
 
             n = sample["image"].shape[0]
             x = sample["image"].to(device)
-            y = sample["mask"].to(device).to(torch.int64)
-            y_hat = model(x)[0]
+            y = sample["mask"].to(device)
+            y_hat = model(x)
             loss = loss_weights[0] * loss_fns[0](y_hat.squeeze(1), y.squeeze(1).float()) + \
                    loss_weights[1] * loss_fns[1](y_hat, y)
+            # loss = dice_bce_loss(y_hat.sigmoid(), y)
             loss.backward()
 
             if batch_id % grad_accumulate_rate == 0:

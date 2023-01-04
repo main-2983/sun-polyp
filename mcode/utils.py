@@ -3,7 +3,7 @@ import os
 import numpy as np
 import logging
 import platform
-
+from torch.nn import functional as F
 import torch
 
 from mmcv.cnn import get_model_complexity_info
@@ -85,3 +85,14 @@ def get_model_info(model, tsize):
     print('!!!Please be cautious if you use the results in papers. '
           'You may need to check if all ops are supported and verify that the '
           'flops computation is correct.')
+
+
+def dice_bce_loss(pred, mask):
+    bce = F.binary_cross_entropy_with_logits(pred, mask, reduction='none')
+    
+    pred = torch.sigmoid(pred)
+    inter = pred * mask
+    union = pred + mask
+    iou = 1 - (2. * inter + 1) / (union + 1)
+
+    return (bce + iou).mean()

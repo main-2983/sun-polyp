@@ -1,0 +1,231 @@
+from ..builder import HEADS
+import torch
+from .decode_head import BaseDecodeHead
+import torch.nn as nn
+import torch.nn.functional as F
+from torch.jit import script
+from icecream import ic 
+
+
+######################################################################################################################
+
+# pre-activation based upsampling conv block
+class upConvLayer(nn.Module):
+    def __init__(self, in_channels, out_channels, scale_factor, act, norm="BN", num_groups=1):
+        super(upConvLayer, self).__init__()
+        if act == 'ELU':
+            act = nn.ELU()
+        else:
+            act = nn.ReLU(True)
+        self.conv = nn.Conv2d(in_channels=in_channels, out_channels=out_channels, kernel_size=3, stride=1, padding=1, bias=False)
+        if norm == 'GN':
+            self.norm = nn.GroupNorm(num_groups=num_groups, num_channels=in_channels)
+        else:
+            self.norm = nn.BatchNorm2d(in_channels, eps=0.001, momentum=0.1, affine=True, track_running_stats=True)
+        self.act = act
+        self.scale_factor = scale_factor
+    def forward(self, x):
+        x = self.norm(x)
+        x = self.act(x)     #pre-activation
+        x = F.interpolate(x, scale_factor=self.scale_factor, mode='bilinear')
+        x = self.conv(x)
+        return x
+
+# pre-activation based conv block
+class Conv(nn.Module):
+    def __init__(self, in_ch, out_ch, kSize, stride=1, 
+                    padding=0, dilation=1, bias=True, norm='BN', act='ELU', num_groups=1):
+        super(Conv, self).__init__()
+        if act == 'ELU':
+            act = nn.ELU()
+        else:
+            act = nn.ReLU(True)
+        module = []
+        if norm == 'GN': 
+            module.append(nn.GroupNorm(num_groups=num_groups, num_channels=in_ch))
+        else:
+            module.append(nn.BatchNorm2d(in_ch, eps=0.001, momentum=0.1, affine=True, track_running_stats=True))
+        module.append(act)
+        module.append(nn.Conv2d(in_ch, out_ch, kernel_size=kSize, stride=stride, padding=padding, dilation=dilation, bias=bias))
+        self.module = nn.Sequential(*module)
+    def forward(self, x):
+        out = self.module(x)
+        return out
+
+def padding(kernel_size, dilation):
+    width_pad_size = kernel_size + (kernel_size - 1) * (dilation - 1)
+    width_pad_size = width_pad_size // 2 + (width_pad_size % 2 - 1)
+    return width_pad_size
+
+# ASPP Module
+class Dilated_bottleNeck(nn.Module):
+    def __init__(self, norm, act, in_feat):
+        super(Dilated_bottleNeck, self).__init__()
+
+
+        # in feat = 1024 in ResNext101 and ResNet101
+        self.reduction1 = nn.Conv2d(in_feat, in_feat//2, kernel_size=1, stride = 1, bias=False, padding=0)
+
+        self.aspp_d3 = nn.Sequential(Conv(in_feat//2, in_feat//2, kSize=9, stride=1, padding=padding(9, 3), dilation=3,bias=False, norm=norm, act=act, num_groups=in_feat//2),
+                                    Conv(in_feat//2, in_feat//4, kSize=1, stride=1, padding=0, dilation=1,bias=False, norm=norm, act=act))
+        self.aspp_d6 = nn.Sequential(Conv(in_feat//2 + in_feat//4, in_feat//2 + in_feat//4, kSize=9, stride=1, padding=padding(9, 6), dilation=6,bias=False, norm=norm, act=act, num_groups=in_feat//2 + in_feat//4),
+                                    Conv(in_feat//2 + in_feat//4, in_feat//4, kSize=1, stride=1, padding=0, dilation=1,bias=False, norm=norm, act=act))
+        self.aspp_d9 = nn.Sequential(Conv(in_feat, in_feat, kSize=9, stride=1, padding=padding(9, 9), dilation=9,bias=False, norm=norm, act=act, num_groups=in_feat),
+                                    Conv(in_feat, in_feat//4, kSize=1, stride=1, padding=0, dilation=1,bias=False, norm=norm, act=act))
+        
+        self.reduction2 = Conv(((in_feat//4)*3) + (in_feat//2), in_feat//2, kSize=3, stride=1, padding=1,bias=False, norm=norm, act=act)
+    def forward(self, x):
+        x = self.reduction1(x)
+        d3 = self.aspp_d3(x)
+        cat1 = torch.cat([x, d3],dim=1)
+        d6 = self.aspp_d6(cat1)
+        cat2 = torch.cat([cat1, d6],dim=1)
+        d9 = self.aspp_d9(cat2)
+        out = self.reduction2(torch.cat([x,d3,d6,d9], dim=1))
+        return out      # 512 x H/16 x W/16
+
+
+# DEEP RESIDUAL PYRAMID HEAD
+
+@HEADS.register_module()
+class DRPHead(BaseDecodeHead):
+    def __init__(self, **kwargs):
+        super().__init__(input_transform='multiple_select', **kwargs)
+        norm = "BN"
+        act = 'ReLU'
+        kSize = 3
+        ############################################     Pyramid Level 5     ###################################################
+        # decoder1 out : 1 x H/16 x W/16 (Level 5)
+        self.ASPP = Dilated_bottleNeck(norm, act, self.in_channels[3])
+        self.decoder1 = nn.Sequential(Conv(self.in_channels[3]//2, self.in_channels[3]//4, kSize, stride=1, padding=kSize//2, bias=False, 
+                                            norm=norm, act=act),      
+                                        Conv(self.in_channels[3]//4, self.in_channels[3]//8, kSize, stride=1, padding=kSize//2, bias=False, 
+                                            norm=norm, act=act),    
+                                        Conv(self.in_channels[3]//8, self.in_channels[3]//16, kSize, stride=1, padding=kSize//2, bias=False, 
+                                            norm=norm, act=act),  
+                                        Conv(self.in_channels[3]//16, self.in_channels[3]//32, kSize, stride=1, padding=kSize//2, bias=False, 
+                                            norm=norm, act=act),
+                                        Conv(self.in_channels[3]//32, 1, kSize, stride=1, padding=kSize//2, bias=False, 
+                                            norm=norm, act=act)
+                                     )
+        
+        ########################################################################################################################
+
+        ############################################     Pyramid Level 4     ###################################################
+        # decoder2 out : 1 x H/8 x W/8 (Level 4)
+        # decoder2_up : (H/16,W/16)->(H/8,W/8)
+        
+        self.decoder2_up1 = upConvLayer(self.in_channels[3]//2, self.in_channels[3]//4, 2, norm, act)
+        self.decoder2_reduc1 = Conv(self.in_channels[3]//4 + self.in_channels[2], self.in_channels[3]//4, kSize=1, stride=1, padding=0,bias=False, 
+                                        norm=norm, act=act)
+        self.decoder2_1 = Conv(self.in_channels[3]//4 + 1, self.in_channels[3]//4, kSize, stride=1, padding=kSize//2, bias=False, 
+                                        norm=norm, act=act)
+        self.decoder2_2 = Conv(self.in_channels[3]//4, self.in_channels[3]//8, kSize, stride=1, padding=kSize//2, bias=False, 
+                                        norm=norm, act=act)
+        self.decoder2_3 = Conv(self.in_channels[3]//8, self.in_channels[3]//16, kSize, stride=1, padding=kSize//2, bias=False, 
+                                        norm=norm, act=act)
+        self.decoder2_4 = Conv(self.in_channels[3]//16, 1, kSize, stride=1, padding=kSize//2, bias=False, 
+                                        norm=norm, act=act)
+        
+        ########################################################################################################################
+
+        ############################################     Pyramid Level 3     ###################################################
+        # decoder2 out2 : 1 x H/4 x W/4 (Level 3)
+        # decoder2_1_up2 : (H/8,W/8)->(H/4,W/4)
+        self.decoder3_up2 = upConvLayer(self.in_channels[3]//4, self.in_channels[3]//8, 2, norm, act, (self.in_channels[3]//4)//16)
+        self.decoder3_reduc2 = Conv(self.in_channels[3]//8 + self.in_channels[1], self.in_channels[3]//8, kSize=1, stride=1, padding=0,bias=False, 
+                                        norm=norm, act=act)
+        self.decoder3_1 = Conv(self.in_channels[3]//8 + 1, self.in_channels[3]//8, kSize, stride=1, padding=kSize//2, bias=False, 
+                                        norm=norm, act=act)
+        
+        self.decoder3_2 = Conv(self.in_channels[3]//8, self.in_channels[3]//16, kSize, stride=1, padding=kSize//2, bias=False, 
+                                        norm=norm, act=act)
+        
+        self.decoder3_3 = Conv(self.in_channels[3]//16, 1, kSize, stride=1, padding=kSize//2, bias=False, 
+                                        norm=norm, act=act)
+        
+        ########################################################################################################################
+
+        ############################################     Pyramid Level 2     ###################################################
+        # decoder2 out3 : 1 x H/2 x W/2 (Level 2)
+        # decoder2_1_1_up3 : (H/4,W/4)->(H/2,W/2)
+        self.decoder4_up3 = upConvLayer(self.in_channels[3]//8, self.in_channels[3]//16, 2, norm, act, (self.in_channels[3]//8)//16)
+        self.decoder4_reduc3 = Conv(self.in_channels[3]//16 + self.in_channels[0], self.in_channels[3]//16, kSize=1, stride=1, padding=0,bias=False, 
+                                        norm=norm, act=act)
+        self.decoder4_1 = Conv(self.in_channels[3]//16 + 1, self.in_channels[3]//16, kSize, stride=1, padding=kSize//2, bias=False, 
+                                        norm=norm, act=act)
+        self.decoder4_2 = Conv(self.in_channels[3]//16, self.in_channels[3]//32, kSize, stride=1, padding=kSize//2, bias=False, 
+                                        norm=norm, act=act)
+        self.decoder4_3 = Conv(self.in_channels[3]//32, 1, kSize, stride=1, padding=kSize//2, bias=False, 
+                                        norm=norm, act=act)
+        
+        ########################################################################################################################
+        
+        ############################################     Pyramid Level 1     ###################################################
+        # decoder5 out : 1 x H x W (Level 1)
+        # decoder2_1_1_1_up4 : (H/2,W/2)->(H,W)
+        self.decoder5_up4 = upConvLayer(self.in_channels[3]//16, self.in_channels[3]//16, 2, norm, act, (self.in_channels[3]//16)//16)
+        
+        self.decoder5_1 = Conv(self.in_channels[3]//16 + 1, self.in_channels[3]//32, kSize, stride=1, padding=kSize//2, bias=False, 
+                                        norm=norm, act=act)
+        
+        self.decoder5_2 = Conv(self.in_channels[3]//32, 1, kSize, stride=1, padding=kSize//2, bias=False, 
+                                        norm=norm, act=act)
+        ########################################################################################################################
+        
+        self.upscale = F.interpolate
+
+    def forward(self, inputs):
+        x = self._transform_inputs(inputs)
+        cat1, cat2, cat3, dense_feat = x[0], x[1], x[2], x[3]
+        dense_feat = self.ASPP(dense_feat)                   # Dense feature for lev 5
+        # decoder 1 - Pyramid level 5
+        lap_lv5 = self.decoder1(dense_feat)   # red block 1  -  R5
+        lap_lv5_up = self.upscale(lap_lv5, scale_factor = 2, mode='bilinear')
+
+        # decoder 2 - Pyramid level 4
+        dec2 = self.decoder2_up1(dense_feat)    # Upconv 1       
+        dec2 = self.decoder2_reduc1(torch.cat([dec2,cat3],dim=1))    # X4
+        dec2_up = self.decoder2_1(torch.cat([dec2,lap_lv5_up],dim=1)) # red block 2-1
+        dec2 = self.decoder2_2(dec2_up)     # red block 2-2
+        dec2 = self.decoder2_3(dec2)        # red block 2-3
+        lap_lv4 = self.decoder2_4(dec2)     # red block 2-4     R4
+        lap_lv4_up = self.upscale(lap_lv4, scale_factor = 2, mode='bilinear')
+        
+        # decoder 2 - Pyramid level 3
+        dec3 = self.decoder3_up2(dec2_up)     # Upconv 2
+        dec3 = self.decoder3_reduc2(torch.cat([dec3,cat2],dim=1))     # X3
+        dec3_up = self.decoder3_1(torch.cat([dec3,lap_lv4_up],dim=1)) # red block 3-1
+        dec3 = self.decoder3_2(dec3_up)     # red block 3-2
+        lap_lv3 = self.decoder3_3(dec3)     # red block 3-3     R3
+        lap_lv3_up = self.upscale(lap_lv3, scale_factor = 2, mode='bilinear')
+        
+        # decoder 2 - Pyramid level 2
+        dec4 = self.decoder4_up3(dec3_up)   # Upconv 3
+        dec4 = self.decoder4_reduc3(torch.cat([dec4,cat1],dim=1))   # X2
+        dec4_up = self.decoder4_1(torch.cat([dec4,lap_lv3_up],dim=1))   # red block 4-1
+        dec4 = self.decoder4_2(dec4_up)  # red block 4-2     R2
+        lap_lv2 = self.decoder4_3(dec4)  # red block 4-3     R2
+        lap_lv2_up = self.upscale(lap_lv2, scale_factor = 2, mode='bilinear')
+        
+        # decoder 2 - Pyramid level 1
+        dec5 = self.decoder5_up4(dec4_up) # Upconv 4
+        dec5 = self.decoder5_1(torch.cat([dec5,lap_lv2_up],dim=1))    # red block 5-1
+        lap_lv1 = self.decoder5_2(dec5)     # red block 5-2
+        
+        # Laplacian restoration
+        lap_lv4_img = lap_lv4 + lap_lv5_up
+        lap_lv3_img = lap_lv3 + self.upscale(lap_lv4_img, scale_factor = 2, mode = 'bilinear')
+        lap_lv2_img = lap_lv2 + self.upscale(lap_lv3_img, scale_factor = 2, mode = 'bilinear')
+        final_depth = lap_lv1 + self.upscale(lap_lv2_img, scale_factor = 2, mode = 'bilinear')
+        
+        return final_depth
+        
+
+
+Cảm ơn anh/chị và công ty vì đã cung cấp cho em môi trường làm việc tuyệt vời và vị trí hoàn toàn phù hợp năng lực và sở thích của em. Trong kỳ review lần này em có một số câu hỏi là : 
+1. em chưa rõ lắm về hệ thống đánh giá S*Review của công ty mình nên em có một thắc mắc là rank 3 tương đương với fresher hay junior trong thang đánh giá software engineer ạ ?
+2. Trong thời gian vừa rồi, em có nhưng khuyết điểm / hạn chế nào cần cải thiện về chuyên môn cũng như các hoạt động ngoài lề và anh/chị có thể cho em lời khuyên để có thể cải thiện được những điều đấy được không ạ ?
+3.  Em nhận thấy một số bạn bè trong ngành bằng số năm kinh nghiệm và năng lực tương đương với em được nhận mức lương 17-20 triệu/tháng hoặc 200-240 triệu/năm. Liệu em có cơ hội được xem xét lại mức lương được tăng trong kỳ review lần này không ạ ? Em sẽ cố gắng hơn nữa trong thời gian tới để tương xứng với mức lương mà em mong muốn.
+
+Em cảm ơn anh/chị rất nhiều ạ.

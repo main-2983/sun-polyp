@@ -11,7 +11,7 @@ from mmcv.cnn.bricks.transformer import MultiheadAttention
 from mmcv.cnn.utils.weight_init import (constant_init, normal_init,
                                         trunc_normal_init)
 from mmcv.runner import BaseModule, ModuleList, Sequential
-
+from torch.nn import functional as F
 from ..builder import BACKBONES
 from ..utils import PatchEmbed, nchw_to_nlc, nlc_to_nchw
 
@@ -437,7 +437,8 @@ class MixVisionTransformer(BaseModule):
 
     def forward(self, x):
         outs = []
-
+        laplacian = self.rgb_compute(x)
+        
         for i, layer in enumerate(self.layers):
             x, hw_shape = layer[0](x)
             for block in layer[1]:
@@ -447,4 +448,26 @@ class MixVisionTransformer(BaseModule):
             if i in self.out_indices:
                 outs.append(x)
 
-        return outs
+        return outs, laplacian
+
+    def rgb_compute(self, x):
+        rgb_down2 = F.interpolate(x, scale_factor = 0.5, mode='bilinear')
+        rgb_down4 = F.interpolate(rgb_down2, scale_factor = 0.5, mode='bilinear')
+        rgb_down8 = F.interpolate(rgb_down4, scale_factor = 0.5, mode='bilinear')
+        rgb_down16 = F.interpolate(rgb_down8, scale_factor = 0.5, mode='bilinear')
+        rgb_down32 = F.interpolate(rgb_down16, scale_factor = 0.5, mode='bilinear')
+        rgb_down64 = F.interpolate(rgb_down32, scale_factor = 0.5, mode='bilinear')
+        rgb_up32 = F.interpolate(rgb_down64, rgb_down32.shape[2:], mode='bilinear')
+        rgb_up16 = F.interpolate(rgb_down32, rgb_down16.shape[2:], mode='bilinear')
+        rgb_up8 = F.interpolate(rgb_down16, rgb_down8.shape[2:], mode='bilinear')
+        rgb_up4 = F.interpolate(rgb_down8, rgb_down4.shape[2:], mode='bilinear')
+        rgb_up2 = F.interpolate(rgb_down4, rgb_down2.shape[2:], mode='bilinear')
+        
+        lap1 = rgb_down2 - rgb_up2
+        lap2 = rgb_down4 - rgb_up4
+        lap3 = rgb_down8 - rgb_up8
+        lap4 = rgb_down16 - rgb_up16
+        lap5 = rgb_down32 - rgb_up32
+        rgb_list = [lap5, lap4, lap3, lap2, lap1]
+
+        return rgb_list

@@ -5,30 +5,27 @@ import segmentation_models_pytorch as smp
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
 import cv2
-
 from .utils import select_device
 from .metrics import AverageMeter
-from .custom_transform import DilationAndErosion
-import imgaug
-imgaug.random.seed(123)
+import os
 # config
 # ===============================================================================
 use_wandb = True
 wandb_key = "d0ee13baa7af4379eff80e68b11cf976bbb8d673"
 wandb_project = "Polyp-Research"
 wandb_entity = "ssl-online"
-wandb_name = "RFP (1)"
-wandb_group = "RFP B1"
+wandb_name = "RLP (1)"
+wandb_group = "RLP B4"
 wandb_dir = "./wandb"
 
 seed = 2022
-device = "cuda:0" if torch.cuda.is_available() else 'cpu'
+device = "cuda:1" if torch.cuda.is_available() else 'cpu'
 num_workers = 8
 
-train_images = glob.glob('TrainDataset/image/*')
-train_masks = glob.glob('TrainDataset/mask/*')
+train_images = glob.glob('/home/nguyen.van.quan/scatsimclr/TrainDataset/image/*')
+train_masks = [i.replace('image', 'mask') for i in train_images]
 
-test_folder = "TestDataset"
+test_folder = "/home/nguyen.van.quan/scatsimclr/TestDataset"
 test_images = glob.glob(f'{test_folder}/*/images/*')
 test_masks = glob.glob(f'{test_folder}/*/masks/*')
 
@@ -45,8 +42,8 @@ iou_meter = AverageMeter()
 dice_meter = AverageMeter()
 
 n_eps = 50
-save_ckpt_ep = 40
-val_ep = 40
+save_ckpt_ep = n_eps-5
+val_ep = n_eps
 best = -1.
 
 init_lr = 1e-4
@@ -62,7 +59,6 @@ train_transform = A.Compose([
     A.VerticalFlip(p=0.5),
     A.RandomGamma (gamma_limit=(50, 150), eps=None, always_apply=False, p=0.5),
     A.RandomBrightness(p=0.3),
-    # DilationAndErosion(),
     A.RGBShift(p=0.3, r_shift_limit=5, g_shift_limit=5, b_shift_limit=5),
     A.OneOf([A.Blur(), A.GaussianBlur(), A.GlassBlur(), A.MotionBlur(), A.GaussNoise(), A.Sharpen(), A.MedianBlur(), A.MultiplicativeNoise()]),
     A.Cutout(p=0.3, max_h_size=25, max_w_size=25, fill_value=255),
@@ -76,7 +72,7 @@ val_transform = A.Compose([
     ToTensorV2(),
 ])
 
-pretrained = "pretrained/mit_b1_mmseg.pth"
+pretrained = "pretrained/mit_b4_mmseg.pth"
 model_cfg = dict(
     type='SunSegmentor',
     backbone=dict(
@@ -84,7 +80,7 @@ model_cfg = dict(
         in_channels=3,
         embed_dims=64,
         num_stages=4,
-        num_layers=[2,2,2,2],
+        num_layers=[3, 8, 27, 3], #3, 8, 27, 3   #3, 4, 18, 3   #3, 4, 6, 3   
         num_heads=[1, 2, 5, 8],
         patch_sizes=[7, 3, 3, 3],
         sr_ratios=[8, 4, 2, 1],
@@ -96,7 +92,7 @@ model_cfg = dict(
         drop_path_rate=0.1,
         pretrained=pretrained),
     decode_head=dict(
-        type='RPFNHead',
+        type='DRPHead',
         in_channels=[64, 128, 320, 512],
         in_index=[0, 1, 2, 3],
         channels=128,

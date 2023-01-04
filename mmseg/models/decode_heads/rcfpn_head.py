@@ -168,17 +168,17 @@ class RPFNHead(BaseDecodeHead):
         self.RevFP['p5'] = FusionNode(
             in_channels=self.channels,
             out_channels=self.channels,
-            op_num=3, upsample_attn=False)
+            op_num=3, upsample_attn=True)
 
         self.RevFP['p4'] = FusionNode(
             in_channels=self.channels,
             out_channels=self.channels,
-            op_num=3, upsample_attn=False)
+            op_num=3, upsample_attn=True)
 
         self.RevFP['p3'] = FusionNode(
             in_channels=self.channels,
             out_channels=self.channels,
-            op_num=2, upsample_attn=False)
+            op_num=2, upsample_attn=True)
         
 
         self.psa1 = PSABlock(self.channels * 4, self.channels * 4)

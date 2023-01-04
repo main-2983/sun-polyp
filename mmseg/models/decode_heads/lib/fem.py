@@ -15,7 +15,7 @@ class FeatureEnhanceModule(nn.Module):
         self.conv2 = Conv(in_channels, in_channels, kernel_size=3, dilation=3, bn=True, relu=True)
         self.conv3 = Conv(in_channels, in_channels, kernel_size=3, dilation=5, bn=True, relu=True)
         
-        self.fusion = Conv(in_channels * 3, out_channels, kernel_size=3, bn=True, relu=True)
+        self.fusion = Conv(in_channels * 3, out_channels, kernel_size=1, bn=True, relu=True)
         
     def forward(self, inp):
         inp1 = self.conv1(inp)
