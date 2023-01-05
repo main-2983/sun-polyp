@@ -3,7 +3,7 @@ from tqdm import tqdm
 from tabulate import tabulate
 import logging
 import os
-
+from torchinfo import summary
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
@@ -82,6 +82,7 @@ if __name__ == '__main__':
             log_f.write(f"{config_data} \n")
 
     set_seed_everything(seed)
+
     if use_wandb:
         assert wandb_group is not None, "Please specify wandb group"
         wandb.login(key=wandb_key)
@@ -97,7 +98,7 @@ if __name__ == '__main__':
     model = build_segmentor(model_cfg)
     model.init_weights()
     model = model.to(device)
-
+    summary(model, input_size=(1,3,352,352))
     # dataset
     train_dataset = ActiveDataset(
         train_images,
@@ -105,17 +106,17 @@ if __name__ == '__main__':
         trainsize=image_size,
         transform=train_transform
     )
-    val_dataset = ActiveDataset(
-        test_images,
-        test_masks,
-        trainsize=image_size,
-        transform=val_transform
-    )
+    # val_dataset = ActiveDataset(
+    #     test_images,
+    #     test_masks,
+    #     trainsize=image_size,
+    #     transform=val_transform
+    # )
 
     set_logging("Polyp")
     LOGGER = logging.getLogger("Polyp")
     LOGGER.info(f"Train size: {len(train_dataset)}")
-    LOGGER.info(f"Valid size: {len(val_dataset)}")
+    # LOGGER.info(f"Valid size: {len(val_dataset)}")
 
     # dataloader
     train_loader = DataLoader(train_dataset, batch_size=bs, num_workers=num_workers)
