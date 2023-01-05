@@ -5,30 +5,29 @@ import segmentation_models_pytorch as smp
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
 import cv2
-
+import os
 from .utils import select_device
 from .metrics import AverageMeter
-from label_assignment import *
+from .label_assignment import *
 
 
 # config
 # ===============================================================================
 use_wandb = False
-wandb_key = None
+wandb_key = "8ded3c9f35d6afaa05763d5f30bf784e5fcee30a"
 wandb_project = "Seg-Uper"
-wandb_entity = "ssl-online"
-wandb_name = "TestGroup (2)"
-wandb_group = None
+wandb_entity = "polyp_segmentation"
+wandb_name = "test_run_wandb"
+wandb_group = "polyp_segment"
 wandb_dir = "./wandb"
 
 seed = 2022
 device = select_device("cuda:0" if torch.cuda.is_available() else 'cpu')
 num_workers = 4
 
-train_images = glob.glob('../Dataset/polyp/TrainDataset/images/*')
-train_masks = glob.glob('../Dataset/polyp/TrainDataset/masks/*')
-
-test_folder = "../Dataset/polyp/TestDataset"
+train_images = glob.glob('../Dataset/TrainDataset/image/*')
+train_masks = glob.glob('../Dataset/TrainDataset/mask/*')
+test_folder = "../Dataset/TestDataset"
 test_images = glob.glob(f'{test_folder}/*/images/*')
 test_masks = glob.glob(f'{test_folder}/*/masks/*')
 
@@ -55,7 +54,7 @@ focal_loss = smp.losses.FocalLoss(smp.losses.BINARY_MODE)
 dice_loss = smp.losses.DiceLoss(smp.losses.BINARY_MODE)
 bce_loss = smp.losses.SoftBCEWithLogitsLoss()
 loss_fns = [bce_loss, dice_loss]
-loss_weights = [[0.5, 0.5]]
+loss_weights = [0.8, 0.2]
 
 train_transform = A.Compose([
     A.HorizontalFlip(p=0.5),
@@ -83,7 +82,7 @@ label_vis_kwargs = {
     'type': None
 }
 
-pretrained = "/mnt/sdd/nguyen.van.quan/BKAI-kaggle/pretrained/mit_b1_mmseg.pth"
+pretrained = "../pretrained/mit_b1_mmseg.pth"
 model_cfg = dict(
     type='SunSegmentor',
     backbone=dict(
@@ -101,9 +100,10 @@ model_cfg = dict(
         drop_rate=0.0,
         attn_drop_rate=0.0,
         drop_path_rate=0.1,
-        pretrained=pretrained),
+        pretrained = pretrained),
     decode_head=dict(
-        type='MLP_OSAHead_v5',
+        type='LAPFormerHead_remove_PPM',
+        # ops='cat',
         in_channels=[64, 128, 320, 512],
         in_index=[0, 1, 2, 3],
         channels=256,
