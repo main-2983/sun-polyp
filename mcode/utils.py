@@ -96,7 +96,10 @@ def select_device(device='', batch_size=0, newline=True):
 def get_model_info(model, tsize):
     model.eval()
 
-    input_shape = (3, tsize[0], tsize[1])
+    c = 3
+    if len(tsize) == 3:
+        c = tsize[2]
+    input_shape = (c, tsize[0], tsize[1])
     flops, params = get_model_complexity_info(model, input_shape)
     split_line = '=' * 30
     print('{0}\nInput shape: {1}\nFlops: {2}\nParams: {3}\n{0}'.format(
