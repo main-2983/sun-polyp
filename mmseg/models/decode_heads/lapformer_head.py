@@ -531,10 +531,10 @@ class LAPFormerHead_removeconcat_PPM(BaseDecodeHead):
             )
 
         self.se_module = SELayer(
-            channels=self.channels * (num_inputs - 1)
+            channels=self.channels
         )
         self.fusion_conv = ConvModule(
-            in_channels=self.channels * (num_inputs - 1),
+            in_channels=self.channels,
             out_channels=self.channels,
             kernel_size=1,
             norm_cfg=self.norm_cfg)
