@@ -50,6 +50,7 @@ class PyramidPoolingAttentionv2(nn.Module):
     """
     def __init__(self,
                  channels,
+                 act_cfg=None,
                  pool_scales=(1, 2, 3, 6)):
         super(PyramidPoolingAttentionv2, self).__init__()
         self.pools = nn.ModuleList()
@@ -57,9 +58,15 @@ class PyramidPoolingAttentionv2(nn.Module):
             self.pools.append(
                 nn.AdaptiveAvgPool2d(pool_scale)
             )
+        self.bottleneck = ConvModule(
+            in_channels=channels,
+            out_channels=channels,
+            kernel_size=1,
+            act_cfg=act_cfg
+        )
 
     def forward(self, x):
-        ppm_outs = []
+        ppm_outs = [x]
         for pool in self.pools:
             out = pool(x)
             upsampled_out = resize(
@@ -70,4 +77,5 @@ class PyramidPoolingAttentionv2(nn.Module):
             )
             ppm_outs.append(upsampled_out)
         attn_weight = sum(ppm_outs)
+        attn_weight = self.bottleneck(attn_weight)
         return x * attn_weight
