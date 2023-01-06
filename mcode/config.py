@@ -25,9 +25,9 @@ seed = 2022
 device = select_device("cuda:0" if torch.cuda.is_available() else 'cpu')
 num_workers = 4
 
-train_images = glob.glob('../Dataset/TrainDataset/image/*')
-train_masks = glob.glob('../Dataset/TrainDataset/mask/*')
-test_folder = "../Dataset/TestDataset"
+train_images = glob.glob('TrainDataset/image/*')
+train_masks = glob.glob('TrainDataset/mask/*')
+test_folder = "TestDataset"
 test_images = glob.glob(f'{test_folder}/*/images/*')
 test_masks = glob.glob(f'{test_folder}/*/masks/*')
 
@@ -82,7 +82,7 @@ label_vis_kwargs = {
     'type': None
 }
 
-pretrained = "../pretrained/mit_b1_mmseg.pth"
+pretrained = "pretrained/mit_b1_mmseg.pth"
 model_cfg = dict(
     type='SunSegmentor',
     backbone=dict(
