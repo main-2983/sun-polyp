@@ -9,7 +9,7 @@ class Scale(nn.Module):
                  init_val=1.0):
         super().__init__()
         self.scale = nn.Parameter(
-            torch.tensor(init_val * torch.ones(channels),
+            torch.tensor(init_val * torch.ones(channels, 1, 1),
                          dtype=torch.float),
             requires_grad=True)
 
