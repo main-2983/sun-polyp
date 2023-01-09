@@ -74,9 +74,20 @@ class SunSegmentor(BaseModule):
         x = self.extract_feat(img)
         out = self.decode_head(x)
 
-        out = resize(
-            input=out,
-            size=img.shape[2:],
-            mode='bilinear',
-            align_corners=self.align_corners)
+        # out = resize(
+        #     input=out,
+        #     size=img.shape[2:],
+        #     mode='bilinear',
+        #     align_corners=self.align_corners)
+        
+        outs = []
+        for aux_out in out:
+            outs.append(
+                resize(
+                    input=aux_out,
+                    size=img.shape[2:],
+                    mode='bilinear',
+                    align_corners=self.align_corners
+                )
+            )
         return out

@@ -91,13 +91,11 @@ if __name__ == '__main__':
             name=wandb_name,
             dir=wandb_dir,
             group=wandb_group,
-            settings=wandb.Settings(code_dir="mmseg/models/decode_heads/"),
-            config={"architecture":"RFP with 5 nodes"}
+            settings=wandb.Settings(code_dir="mmseg/models/decode_heads/")
         )
     
     # model
-    model = build_segmentor(model_cfg)
-    model.init_weights()
+    model = segformer('b4')
     model = model.to(device)
 
     # dataset

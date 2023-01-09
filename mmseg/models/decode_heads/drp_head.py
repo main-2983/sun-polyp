@@ -5,8 +5,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.jit import script
 from icecream import ic 
-from .lib.psa import PSA_p, PSABlock
-
+from .lib.psa import PSA_p
+from .psp_head import PPM
 
 ######################################################################################################################
 
@@ -23,6 +23,7 @@ class upConvLayer(nn.Module):
             self.norm = nn.GroupNorm(num_groups=num_groups, num_channels=in_channels)
         else:
             self.norm = nn.BatchNorm2d(in_channels, eps=0.001, momentum=0.1, affine=True, track_running_stats=True)
+        self.drop = nn.Dropout(0.1)
         self.act = act
         self.scale_factor = scale_factor
     def forward(self, x):
@@ -30,13 +31,30 @@ class upConvLayer(nn.Module):
         x = self.act(x)     #pre-activation
         x = F.interpolate(x, scale_factor=self.scale_factor, mode='bilinear')
         x = self.conv(x)
+        x = self.drop(x)
         return x
+
+def make_padding(kernel_size, dilation):
+    if type(kernel_size) != int:
+        index = kernel_size.index(max(kernel_size))
+        kernel_size = max(kernel_size)
+        width_pad_size = kernel_size + (kernel_size - 1) * (dilation - 1)
+        width_pad_size = width_pad_size // 2 + (width_pad_size % 2 - 1)
+        if index == 0:
+            return (width_pad_size, 0)
+        else:
+            return (0, width_pad_size)
+    else:
+        width_pad_size = kernel_size + (kernel_size - 1) * (dilation - 1)
+        width_pad_size = width_pad_size // 2 + (width_pad_size % 2 - 1)
+    return width_pad_size
 
 # pre-activation based conv block
 class Conv(nn.Module):
     def __init__(self, in_ch, out_ch, kSize, stride=1, 
-                    padding=0, dilation=1, bias=True, norm='BN', act='ELU', num_groups=1):
+                    padding=0, dilation=1, bias=True, norm='BN', act='ReLU', num_groups=1):
         super(Conv, self).__init__()
+        padding = make_padding(kSize, dilation)
         if act == 'ELU':
             act = nn.ELU()
         else:
@@ -47,46 +65,141 @@ class Conv(nn.Module):
         else:
             module.append(nn.BatchNorm2d(in_ch, eps=0.001, momentum=0.1, affine=True, track_running_stats=True))
         module.append(act)
-        module.append(nn.Conv2d(in_ch, out_ch, kernel_size=kSize, stride=stride, padding=padding, dilation=dilation, bias=bias))
+        module.append(nn.Conv2d(in_ch, out_ch, kernel_size=kSize, stride=stride, padding=padding, dilation=dilation, bias=bias, groups=num_groups))
         self.module = nn.Sequential(*module)
     def forward(self, x):
         out = self.module(x)
         return out
 
-def padding(kernel_size, dilation):
-    width_pad_size = kernel_size + (kernel_size - 1) * (dilation - 1)
-    width_pad_size = width_pad_size // 2 + (width_pad_size % 2 - 1)
-    return width_pad_size
+class AttentionModule(nn.Module):
+    def __init__(self, infeat):
+        super().__init__()
+        dim = infeat//2
+        self.reduc_conv = Conv(infeat, dim, 1)
+        self.conv0 = nn.Conv2d(dim, dim, 5, padding=2, groups=dim)
+        self.conv0_1 = nn.Conv2d(dim, dim, (1, 7), padding=(0, 3), groups=dim)
+        self.conv0_2 = nn.Conv2d(dim, dim, (7, 1), padding=(3, 0), groups=dim)
+
+        self.conv1_1 = nn.Conv2d(dim, dim, (1, 11), padding=(0, 5), groups=dim)
+        self.conv1_2 = nn.Conv2d(dim, dim, (11, 1), padding=(5, 0), groups=dim)
+
+        self.conv2_1 = nn.Conv2d(
+            dim, dim, (1, 15), padding=(0, 7), groups=dim)
+        self.conv2_2 = nn.Conv2d(
+            dim, dim, (15, 1), padding=(7, 0), groups=dim)
+        self.conv3 = nn.Conv2d(dim, dim, 1)
+
+    def forward(self, x):
+        x = self.reduc_conv(x)
+        u = x.clone()
+        attn = self.conv0(x)
+
+        attn_0 = self.conv0_1(attn)
+        attn_0 = self.conv0_2(attn_0)
+
+        attn_1 = self.conv1_1(attn)
+        attn_1 = self.conv1_2(attn_1)
+
+        attn_2 = self.conv2_1(attn)
+        attn_2 = self.conv2_2(attn_2)
+        attn = attn + attn_0 + attn_1 + attn_2
+
+        attn = self.conv3(attn)
+
+        return attn * u
 
 # ASPP Module
 class Dilated_bottleNeck(nn.Module):
     def __init__(self, norm, act, in_feat):
         super(Dilated_bottleNeck, self).__init__()
+        # 1 : large separable depthwise conv 
 
-        self.reduction1 = nn.Conv2d(in_feat, in_feat//2, kernel_size=1, stride = 1, bias=False, padding=0)
-
-        self.aspp_d3 = nn.Sequential(Conv(in_feat//2, in_feat//2, kSize=9, stride=1, padding=padding(9, 3), dilation=3,bias=False, norm=norm, act=act, num_groups=in_feat),
-                                    Conv(in_feat//2, in_feat//4, kSize=1, stride=1, padding=0, dilation=1,bias=False, norm=norm, act=act))
-        self.aspp_d6 = nn.Sequential(Conv(in_feat//2 + in_feat//4, in_feat//2 + in_feat//4, kSize=9, stride=1, padding=padding(9, 6), dilation=6,bias=False, norm=norm, act=act, num_groups=in_feat),
-                                    Conv(in_feat//2 + in_feat//4, in_feat//4, kSize=1, stride=1, padding=0, dilation=1,bias=False, norm=norm, act=act))
-        self.aspp_d9 = nn.Sequential(Conv(in_feat, in_feat, kSize=9, stride=1, padding=padding(9, 9), dilation=9,bias=False, norm=norm, act=act, num_groups=in_feat),
-                                    Conv(in_feat, in_feat//4, kSize=1, stride=1, padding=0, dilation=1,bias=False, norm=norm, act=act))
+        self.reduction1 = Conv(in_feat, in_feat//2, kSize=1, stride = 1, bias=False, padding=0)
+        dim = in_feat//2
+        self.aspp_d3 = nn.Sequential(Conv(dim, dim, kSize=11, stride=1, dilation=1,bias=False, norm=norm, act=act, num_groups=dim),
+                                     Conv(dim, dim, kSize=1, stride=1, padding=0, dilation=1,bias=False, norm=norm, act=act))
+        self.attn_reduc1 = Conv(in_feat, dim, kSize=1)
+        self.aspp_d6 = nn.Sequential(Conv(dim, dim, kSize=11, stride=1, dilation=2,bias=False, norm=norm, act=act, num_groups=dim),
+                                     Conv(dim, dim, kSize=1, stride=1, padding=0, dilation=1,bias=False, norm=norm, act=act))
+        self.attn_reduc2 = Conv(in_feat, dim, kSize=1)
+        self.aspp_d9 = nn.Sequential(Conv(dim, dim, kSize=11, stride=1, dilation=4,bias=False, norm=norm, act=act, num_groups=dim),
+                                     Conv(dim, dim, kSize=1, stride=1, padding=0, dilation=1,bias=False, norm=norm, act=act))
         
-        self.reduction2 = Conv(((in_feat//4)*3) + (in_feat//2), in_feat//2, kSize=1, stride=1, padding=0,bias=False, norm=norm, act=act)
+        self.reduction2 = Conv((dim)*4, dim, kSize=1, stride=1, padding=0,bias=False, norm=norm, act=act)
     def forward(self, x):
         x = self.reduction1(x)
         d3 = self.aspp_d3(x)
-        cat1 = torch.cat([x, d3],dim=1)
+        cat1 = self.attn_reduc1(torch.cat([x, d3],dim=1))
         d6 = self.aspp_d6(cat1)
-        cat2 = torch.cat([cat1, d6],dim=1)
+        cat2 = self.attn_reduc2(torch.cat([cat1, d6],dim=1))
+        d9 = self.aspp_d9(cat2)
+        out = self.reduction2(torch.cat([x,d3,d6,d9], dim=1))
+        return out      # 256 x H/16 x W/16
+
+
+# ASPP Module
+class Dilated_bottleNeck_1(nn.Module):
+    def __init__(self, norm, act, in_feat):
+        super(Dilated_bottleNeck_1, self).__init__()
+        # less channel large conv
+        self.reduction1 = Conv(in_feat, in_feat//2, kSize=1, stride = 1, bias=False, padding=0)
+
+        self.aspp_d3 = nn.Sequential(Conv(in_feat//2, in_feat//4, kSize=1, stride=1, dilation=1,bias=False, norm=norm, act=act),
+                                     Conv(in_feat//4, in_feat//4, kSize=9, stride=1, padding=0, dilation=1,bias=False, norm=norm, act=act))
+        self.attn_reduc1 = Conv(in_feat//2 + in_feat//4, in_feat//2, kSize=1)
+        self.aspp_d6 = nn.Sequential(Conv(in_feat//2, in_feat//4, kSize=1, stride=1, dilation=1,bias=False, norm=norm, act=act),
+                                     Conv(in_feat//4, in_feat//4, kSize=9, stride=1, padding=0, dilation=2,bias=False, norm=norm, act=act))
+        self.attn_reduc2 = Conv(in_feat//2 + in_feat//4, in_feat//2, kSize=1)
+        self.aspp_d9 = nn.Sequential(Conv(in_feat//2, in_feat//4, kSize=1, stride=1, dilation=4,bias=False, norm=norm, act=act),
+                                     Conv(in_feat//4, in_feat//4, kSize=9, stride=1, padding=0, dilation=4,bias=False, norm=norm, act=act))
+        
+        self.reduction2 = Conv((in_feat//4)*3 + in_feat//2, in_feat//2, kSize=1, stride=1, padding=0,bias=False, norm=norm, act=act)
+    def forward(self, x):
+        x = self.reduction1(x)
+        d3 = self.aspp_d3(x)
+        cat1 = self.attn_reduc1(torch.cat([x, d3],dim=1))
+        d6 = self.aspp_d6(cat1)
+        cat2 = self.attn_reduc2(torch.cat([cat1, d6],dim=1))
+        d9 = self.aspp_d9(cat2)
+        out = self.reduction2(torch.cat([x,d3,d6,d9], dim=1))
+        return out      # 256 x H/16 x W/16
+
+
+# ASPP Module
+class Dilated_bottleNeck_2(nn.Module):
+    def __init__(self, norm, act, in_feat):
+        super(Dilated_bottleNeck_2, self).__init__()
+
+        self.reduction1 = Conv(in_feat, in_feat//2, kSize=1, stride = 1, bias=False, padding=0)
+        dim = in_feat//2
+        self.aspp_d3 = nn.Sequential(Conv(dim, dim, kSize=(9,1), stride=1,bias=False, norm=norm, act=act, num_groups=dim),
+                                     Conv(dim, dim, kSize=(1,9), stride=1,bias=False, norm=norm, act=act, num_groups=dim))
+        self.attn_reduc1 = Conv(in_feat, dim, kSize=1)
+        self.aspp_d6 = nn.Sequential(Conv(dim, dim, kSize=(11,1), stride=1,bias=False, norm=norm, act=act, num_groups=dim),
+                                     Conv(dim, dim, kSize=(1,11), stride=1,bias=False, norm=norm, act=act, num_groups=dim))
+        self.attn_reduc2 = Conv(in_feat, dim, kSize=1)
+        self.aspp_d9 = nn.Sequential(Conv(dim, dim, kSize=(13,1), stride=1,bias=False, norm=norm, act=act, num_groups=dim),
+                                     Conv(dim, dim, kSize=(1,13), stride=1,bias=False, norm=norm, act=act, num_groups=dim))
+        
+        self.reduction2 = Conv((dim)*4, dim, kSize=1, stride=1,bias=False, norm=norm, act=act)
+    def forward(self, x):
+        x = self.reduction1(x)
+        d3 = self.aspp_d3(x)
+        cat1 = self.attn_reduc1(torch.cat([x, d3],dim=1))
+        d6 = self.aspp_d6(cat1)
+        cat2 = self.attn_reduc2(torch.cat([cat1, d6],dim=1))
         d9 = self.aspp_d9(cat2)
         out = self.reduction2(torch.cat([x,d3,d6,d9], dim=1))
         return out      # 256 x H/16 x W/16
 
 
 
+# 1 : large separable depthwise conv - Params:0.954 Flops:0.116 - 87.2: kvasir_93.13, colon_80.8, etis_82.3, cliniic_92.1
+# *2 : less channels large conv  - Params:4.578 Flops:0.554 - 86.8: kvasir_92.89, colon_81.7, etis_79.8
+# 3 : strip conv                 - Params:4.989 Flops:0.604 - 86.9: kvasir_92.09, colon_81.6, etis_81.1
+# 4 : strip depthwise conv       - Params:0.681 Flops:0.083 - 87.3: kvasir_92.89, colon_81.4, etis_82
+# 5 : large conv attn module       Params:0.223 Flops:0.027 - 87.38: kvasir_92.22, colon_81.9, etis_81.4
 # DEEP RESIDUAL PYRAMID HEAD
-
 @HEADS.register_module()
 class DRPHead(BaseDecodeHead):
     def __init__(self, **kwargs):
@@ -97,6 +210,8 @@ class DRPHead(BaseDecodeHead):
         ############################################     Pyramid Level 5     ###################################################
         # decoder1 out : 1 x H/16 x W/16 (Level 5)
         self.ASPP = Dilated_bottleNeck(norm, act, self.in_channels[3])
+        # self.ASPP = AttentionModule(self.in_channels[3]) 
+        
         self.psa_1 = PSA_p(self.in_channels[3]//2, self.in_channels[3]//2) 
         self.decoder1_temp = nn.Parameter(torch.ones(1, dtype=torch.float32), requires_grad=True)
         self.decoder1 = nn.Sequential(Conv(self.in_channels[3]//2, self.in_channels[3]//4, kSize, stride=1, padding=kSize//2, bias=False, 
@@ -251,6 +366,6 @@ class DRPHead(BaseDecodeHead):
         mask_lv3_img = self.mask_lv3 + self.upscale(mask_lv4_img, scale_factor = 2, mode = 'bilinear')
         mask_lv2_img = self.mask_lv2 + self.upscale(mask_lv3_img, scale_factor = 2, mode = 'bilinear')
         final_mask = self.mask_lv1 + self.upscale(mask_lv2_img, scale_factor = 2, mode = 'bilinear')
-        
-        return final_mask
+        #[final_mask, mask_lv2_img, mask_lv3_img, mask_lv4_img, mask_lv5_up]
+        return [final_mask, mask_lv2_img, mask_lv3_img, mask_lv4_img, mask_lv5_up]
     

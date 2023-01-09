@@ -5,6 +5,8 @@ import segmentation_models_pytorch as smp
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
 import cv2
+from mmseg.models import build_segmentor
+from mmcv.runner.optimizer import build_optimizer
 from .utils import select_device
 from .metrics import AverageMeter
 import os
@@ -19,7 +21,7 @@ wandb_group = "RLP B4"
 wandb_dir = "./wandb"
 
 seed = 2022
-device = "cuda:1" if torch.cuda.is_available() else 'cpu'
+device = "cuda:0" if torch.cuda.is_available() else 'cpu'
 num_workers = 8
 
 train_images = glob.glob('/home/nguyen.van.quan/scatsimclr/TrainDataset/image/*')
@@ -72,35 +74,50 @@ val_transform = A.Compose([
     ToTensorV2(),
 ])
 
-pretrained = "pretrained/mit_b4_mmseg.pth"
-model_cfg = dict(
-    type='SunSegmentor',
-    backbone=dict(
-        type='MixVisionTransformer',
-        in_channels=3,
-        embed_dims=64,
-        num_stages=4,
-        num_layers=[3, 8, 27, 3], #3, 8, 27, 3   #3, 4, 18, 3   #3, 4, 6, 3   
-        num_heads=[1, 2, 5, 8],
-        patch_sizes=[7, 3, 3, 3],
-        sr_ratios=[8, 4, 2, 1],
-        out_indices=(0, 1, 2, 3),
-        mlp_ratio=4,
-        qkv_bias=True,
-        drop_rate=0.0,
-        attn_drop_rate=0.0,
-        drop_path_rate=0.1,
-        pretrained=pretrained),
-    decode_head=dict(
-        type='DRPHead',
-        in_channels=[64, 128, 320, 512],
-        in_index=[0, 1, 2, 3],
-        channels=128,
-        dropout_ratio=0.1,
-        num_classes=1,
-        norm_cfg=dict(type='BN', requires_grad=True),
-        align_corners=False,
-        loss_decode=dict(type='CrossEntropyLoss', use_sigmoid=True, loss_weight=1.0))
-)
+def segformer(arch):
+    num_layers = []
+    pretrained = f'pretrained/mit_{arch}_mmseg.pth'
+    if arch == 'b1':
+        num_layers = [2,2,2,2]
+    if arch == 'b2':
+        num_layers = [3, 4, 6, 3 ]
+    if arch == 'b3':
+        num_layers = [3, 4, 18, 3]
+    if arch == 'b4':
+        num_layers = [3, 8, 27, 3]
+    model = dict(
+        type='SunSegmentor',
+        backbone=dict(
+            type='MixVisionTransformer',
+            in_channels=3,
+            embed_dims=64,
+            num_stages=4,
+            num_layers=num_layers,
+            num_heads=[1, 2, 5, 8],
+            patch_sizes=[7, 3, 3, 3],
+            sr_ratios=[8, 4, 2, 1],
+            out_indices=(0, 1, 2, 3),
+            mlp_ratio=4,
+            qkv_bias=True,
+            drop_rate=0.0,
+            attn_drop_rate=0.0,
+            drop_path_rate=0.1,
+            pretrained=pretrained),
+        decode_head=dict(
+            type='DRPHead',
+            in_channels=[64, 128, 320, 512],
+            in_index=[0, 1, 2, 3],
+            channels=128,
+            dropout_ratio=0.1,
+            num_classes=1,
+            norm_cfg=dict(type='BN', requires_grad=True),
+            align_corners=False,
+            loss_decode=dict(type='CrossEntropyLoss', use_sigmoid=True, loss_weight=1.0)),
+        # model training and testing settings
+        train_cfg=dict(),
+        test_cfg=dict(mode='whole'))
+    model = build_segmentor(model)
+    model.init_weights()
+    return model
 
 # ===============================================================================
