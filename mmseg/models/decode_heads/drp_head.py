@@ -195,10 +195,10 @@ class Dilated_bottleNeck_2(nn.Module):
 
 
 # 1 : large separable depthwise conv - Params:0.954 Flops:0.116 - 87.2: kvasir_93.13, colon_80.8, etis_82.3, cliniic_92.1
-# *2 : less channels large conv  - Params:4.578 Flops:0.554 - 86.8: kvasir_92.89, colon_81.7, etis_79.8
+# 2 : less channels large conv  - Params:4.578 Flops:0.554 - 86.8: kvasir_92.89, colon_81.7, etis_79.8
 # 3 : strip conv                 - Params:4.989 Flops:0.604 - 86.9: kvasir_92.09, colon_81.6, etis_81.1
 # 4 : strip depthwise conv       - Params:0.681 Flops:0.083 - 87.3: kvasir_92.89, colon_81.4, etis_82
-# 5 : large conv attn module       Params:0.223 Flops:0.027 - 87.38: kvasir_92.22, colon_81.9, etis_81.4
+# *5 : large conv attn module       Params:0.223 Flops:0.027 - 87.38: kvasir_92.22, colon_81.9, etis_81.4
 # DEEP RESIDUAL PYRAMID HEAD
 @HEADS.register_module()
 class DRPHead(BaseDecodeHead):
@@ -308,10 +308,10 @@ class DRPHead(BaseDecodeHead):
         self.upscale = F.interpolate
 
     def forward(self, inputs):
-        inputs, laplacian = inputs
+        inputs = inputs
         x = self._transform_inputs(inputs)
         cat1, cat2, cat3, dense_feat = x[0], x[1], x[2], x[3]
-        rgb_lv5, rgb_lv4, rgb_lv3, rgb_lv2, rgb_lv1 = laplacian
+        # rgb_lv5, rgb_lv4, rgb_lv3, rgb_lv2, rgb_lv1 = laplacian
 
         
         # decoder 1 - Pyramid level 5
