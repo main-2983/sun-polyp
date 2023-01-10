@@ -1249,6 +1249,7 @@ class LAPHead_v2_10(BaseDecodeHead):
             kernel_size=1,
             norm_cfg=self.norm_cfg)
         self.scales = nn.ModuleList([
+            Scale(self.channels), # for skip-connection
             Scale(self.channels), # for 1/8
             Scale(self.channels), # for 1/16
             Scale(self.channels)  # for 1/32
@@ -1297,7 +1298,7 @@ class LAPHead_v2_10(BaseDecodeHead):
             else:
                 x1 = _out
                 x2 = _inputs[idx - 1]
-            x = self.scales[idx - 1](x1) + x2
+            x = self.scales[idx](x1) + x2
             _out = linear_prj(x)
             outs.append(_out)
 
@@ -1306,7 +1307,7 @@ class LAPHead_v2_10(BaseDecodeHead):
         out = self.fusion_conv(out)
 
         # perform identity mapping
-        out = outs[-1] + out
+        out = self.scales[0](outs[-1]) + out
 
         out = self.cls_seg(out)
 
