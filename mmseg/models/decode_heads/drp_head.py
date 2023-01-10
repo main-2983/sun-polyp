@@ -209,8 +209,8 @@ class DRPHead(BaseDecodeHead):
         kSize = 3
         ############################################     Pyramid Level 5     ###################################################
         # decoder1 out : 1 x H/16 x W/16 (Level 5)
-        self.ASPP = Dilated_bottleNeck(norm, act, self.in_channels[3])
-        # self.ASPP = AttentionModule(self.in_channels[3]) 
+        # self.ASPP = Dilated_bottleNeck(norm, act, self.in_channels[3])
+        self.ASPP = AttentionModule(self.in_channels[3]) 
         
         self.psa_1 = PSA_p(self.in_channels[3]//2, self.in_channels[3]//2) 
         self.decoder1_temp = nn.Parameter(torch.ones(1, dtype=torch.float32), requires_grad=True)
@@ -235,7 +235,7 @@ class DRPHead(BaseDecodeHead):
         self.decoder2_up1 = upConvLayer(self.in_channels[3]//2, self.in_channels[3]//2, 2, norm, act)
         self.decoder2_attn = PSA_p(self.in_channels[3]//2, self.in_channels[3]//2)
         self.decoder2_temp = nn.Parameter(torch.ones(1, dtype=torch.float32), requires_grad=True)
-        self.decoder2_reduc1 = Conv(self.in_channels[3]//2 + self.in_channels[2] + 3, self.in_channels[3]//2, kSize=kSize, stride=1, padding=kSize//2,bias=False, 
+        self.decoder2_reduc1 = Conv(self.in_channels[3]//2 + self.in_channels[2], self.in_channels[3]//2, kSize=kSize, stride=1, padding=kSize//2,bias=False, 
                                         norm=norm, act=act)
         self.decoder2_1 = Conv(self.in_channels[3]//2, self.in_channels[3]//4, kSize, stride=1, padding=kSize//2, bias=False, 
                                         norm=norm, act=act)
@@ -257,7 +257,7 @@ class DRPHead(BaseDecodeHead):
         self.decoder3_up2 = upConvLayer(self.in_channels[3]//4, self.in_channels[3]//4, 2, norm, act, (self.in_channels[3]//4)//16)
         self.decoder3_attn = PSA_p(self.in_channels[3]//4, self.in_channels[3]//4)
         self.decoder3_temp = nn.Parameter(torch.ones(1, dtype=torch.float32), requires_grad=True)
-        self.decoder3_reduc2 = Conv(self.in_channels[3]//4 + self.in_channels[1] + 3, self.in_channels[3]//4, kSize=kSize, stride=1, padding=kSize//2,bias=False, 
+        self.decoder3_reduc2 = Conv(self.in_channels[3]//4 + self.in_channels[1], self.in_channels[3]//4, kSize=kSize, stride=1, padding=kSize//2,bias=False, 
                                         norm=norm, act=act)
         self.decoder3_1 = Conv(self.in_channels[3]//4, self.in_channels[3]//8, kSize, stride=1, padding=kSize//2, bias=False, 
                                         norm=norm, act=act)
@@ -279,7 +279,7 @@ class DRPHead(BaseDecodeHead):
         self.decoder4_up3 = upConvLayer(self.in_channels[3]//8, self.in_channels[3]//8, 2, norm, act, (self.in_channels[3]//8)//16)
         self.decoder4_attn = PSA_p(self.in_channels[3]//8, self.in_channels[3]//8)
         self.decoder4_temp = nn.Parameter(torch.ones(1, dtype=torch.float32), requires_grad=True)
-        self.decoder4_reduc3 = Conv(self.in_channels[3]//8 + self.in_channels[0] + 3, self.in_channels[3]//8, kSize=kSize, stride=1, padding=kSize//2,bias=False, 
+        self.decoder4_reduc3 = Conv(self.in_channels[3]//8 + self.in_channels[0], self.in_channels[3]//8, kSize=kSize, stride=1, padding=kSize//2,bias=False, 
                                         norm=norm, act=act)
         self.decoder4_1 = Conv(self.in_channels[3]//8, self.in_channels[3]//16, kSize, stride=1, padding=kSize//2, bias=False, 
                                         norm=norm, act=act)
@@ -297,7 +297,7 @@ class DRPHead(BaseDecodeHead):
         self.decoder5_up4 = upConvLayer(self.in_channels[3]//16, self.in_channels[3]//16, 2, norm, act, (self.in_channels[3]//16)//16)
         self.decoder5_attn = PSA_p(self.in_channels[3]//16, self.in_channels[3]//16)
         self.decoder5_temp = nn.Parameter(torch.ones(1, dtype=torch.float32), requires_grad=True)
-        self.decoder5_reduc4 = Conv(self.in_channels[3]//16 + 3, self.in_channels[3]//16, kSize=kSize, stride=1, padding=kSize//2,bias=False, 
+        self.decoder5_reduc4 = Conv(self.in_channels[3]//16, self.in_channels[3]//16, kSize=kSize, stride=1, padding=kSize//2,bias=False, 
                                         norm=norm, act=act)
         self.decoder5_1 = Conv(self.in_channels[3]//16, self.in_channels[3]//32, kSize, stride=1, padding=kSize//2, bias=False, 
                                         norm=norm, act=act)
@@ -317,40 +317,40 @@ class DRPHead(BaseDecodeHead):
         # decoder 1 - Pyramid level 5
         dense_feat = self.ASPP(dense_feat)   
         dense_feat = self.psa_1(dense_feat)                # Dense feature for lev 5
-        self.mask_lv5 = self.decoder1(dense_feat) + (self.decoder1_temp*rgb_lv5.mean(dim=1,keepdim=True))  # block 1-1  -  R5
+        self.mask_lv5 = self.decoder1(dense_feat)# + (self.decoder1_temp*rgb_lv5.mean(dim=1,keepdim=True))  # block 1-1  -  R5
         mask_lv5_up = self.upscale(self.mask_lv5, scale_factor = 2, mode='bilinear')
 
 
         # decoder 2 - Pyramid level 4
         dec2 = self.decoder2_up1(dense_feat)    # Upconv 1  
-        dec2 = self.decoder2_reduc1(torch.cat([dec2,cat3,rgb_lv4],dim=1))    # X4
+        dec2 = self.decoder2_reduc1(torch.cat([dec2,cat3],dim=1))    # X4
         dec2 = self.decoder2_attn(torch.sigmoid(mask_lv5_up)*dec2)
         dec2_up = self.decoder2_1(dec2)     #  block 2-1
         dec2 = self.decoder2_2(dec2_up)     #  block 2-2
         dec2 = self.decoder2_3(dec2)        #  block 2-3
         dec2 = self.decoder2_4(dec2)        #  block 2-4
-        self.mask_lv4 = self.decoder2_5(dec2) + (self.decoder2_temp*rgb_lv4.mean(dim=1,keepdim=True))    #  block 2-5  -  R4 
+        self.mask_lv4 = self.decoder2_5(dec2)# + (self.decoder2_temp*rgb_lv4.mean(dim=1,keepdim=True))    #  block 2-5  -  R4 
         mask_lv4_up = self.upscale(self.mask_lv4, scale_factor = 2, mode='bilinear')
         
         
         # decoder 2 - Pyramid level 3
         dec3 = self.decoder3_up2(dec2_up)     # Upconv 2
-        dec3 = self.decoder3_reduc2(torch.cat([dec3,cat2, rgb_lv3],dim=1))    # X3
+        dec3 = self.decoder3_reduc2(torch.cat([dec3,cat2],dim=1))    # X3
         dec3 = self.decoder3_attn(torch.sigmoid(mask_lv4_up)*dec3)
         dec3_up = self.decoder3_1(dec3)     #  block 3-1
         dec3 = self.decoder3_2(dec3_up)     #  block 3-2
         dec3 = self.decoder3_3(dec3)        #  block 3-3
-        self.mask_lv3 = self.decoder3_4(dec3) + (self.decoder3_temp*rgb_lv3.mean(dim=1,keepdim=True))     #  block 3-3     R3
+        self.mask_lv3 = self.decoder3_4(dec3)# + (self.decoder3_temp*rgb_lv3.mean(dim=1,keepdim=True))     #  block 3-3     R3
         mask_lv3_up = self.upscale(self.mask_lv3, scale_factor = 2, mode='bilinear')
         
         
         # decoder 2 - Pyramid level 2
         dec4 = self.decoder4_up3(dec3_up)   # Upconv 3
-        dec4 = self.decoder4_reduc3(torch.cat([dec4,cat1, rgb_lv2],dim=1))   # X2
+        dec4 = self.decoder4_reduc3(torch.cat([dec4,cat1],dim=1))   # X2
         dec4 = self.decoder4_attn(torch.sigmoid(mask_lv3_up)*dec4)
         dec4_up = self.decoder4_1(dec4)   #  block 4-1
         dec4 = self.decoder4_2(dec4_up)   #  block 4-2     R2
-        self.mask_lv2 = self.decoder4_3(dec4) + (self.decoder4_temp*rgb_lv2.mean(dim=1,keepdim=True))  #  block 4-3     R2
+        self.mask_lv2 = self.decoder4_3(dec4)# + (self.decoder4_temp*rgb_lv2.mean(dim=1,keepdim=True))  #  block 4-3     R2
         mask_lv2_up = self.upscale(self.mask_lv2, scale_factor = 2, mode='bilinear')
         
         
@@ -358,7 +358,7 @@ class DRPHead(BaseDecodeHead):
         dec5 = self.decoder5_up4(dec4_up) # Upconv 4
         dec5 = self.decoder5_attn(torch.sigmoid(mask_lv2_up)*dec5)
         dec5 = self.decoder5_1(dec5)     #  block 5-1
-        self.mask_lv1 = self.decoder5_2(dec5) + (self.decoder5_temp*rgb_lv1.mean(dim=1,keepdim=True))    #  block 5-2
+        self.mask_lv1 = self.decoder5_2(dec5)# + (self.decoder5_temp*rgb_lv1.mean(dim=1,keepdim=True))    #  block 5-2
         
         
         # mask restoration
@@ -366,6 +366,5 @@ class DRPHead(BaseDecodeHead):
         mask_lv3_img = self.mask_lv3 + self.upscale(mask_lv4_img, scale_factor = 2, mode = 'bilinear')
         mask_lv2_img = self.mask_lv2 + self.upscale(mask_lv3_img, scale_factor = 2, mode = 'bilinear')
         final_mask = self.mask_lv1 + self.upscale(mask_lv2_img, scale_factor = 2, mode = 'bilinear')
-        #[final_mask, mask_lv2_img, mask_lv3_img, mask_lv4_img, mask_lv5_up]
-        return [final_mask, mask_lv2_img, mask_lv3_img, mask_lv4_img, mask_lv5_up]
-    
+
+        return final_mask
