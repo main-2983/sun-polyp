@@ -13,16 +13,16 @@ from .label_assignment import *
 
 # config
 # ===============================================================================
-use_wandb = False
+use_wandb = True
 wandb_key = "8ded3c9f35d6afaa05763d5f30bf784e5fcee30a"
 wandb_project = "Seg-Uper"
 wandb_entity = "polyp_segmentation"
 wandb_name = "test_run_wandb"
 wandb_group = "polyp_segment"
-wandb_dir = "./wandb"
+# wandb_dir = "~/wandb"
 
 seed = 2022
-device = select_device("cuda:0" if torch.cuda.is_available() else 'cpu')
+device = select_device("cuda:1" if torch.cuda.is_available() else 'cpu')
 num_workers = 4
 
 train_images = glob.glob('TrainDataset/image/*')
@@ -102,7 +102,7 @@ model_cfg = dict(
         drop_path_rate=0.1,
         pretrained = pretrained),
     decode_head=dict(
-        type='LAPFormerHead_remove_PPM',
+        type='LAPFormerHead_removeconcat_PPM',
         # ops='cat',
         in_channels=[64, 128, 320, 512],
         in_index=[0, 1, 2, 3],

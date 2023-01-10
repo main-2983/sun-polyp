@@ -86,30 +86,31 @@ class SunSegmentor(BaseModule):
         outs = []
         x = self.extract_feat(img)
         out = self.decode_head(x)
-        if isinstance(out, list):
-            for _out in out:
-                outs.append(resize(
-                    input=_out,
-                    size=img.shape[2:],
-                    mode='bilinear',
-                    align_corners=self.align_corners
-                ))
-            return outs if self.training else outs[0]
+        # if isinstance(out, list):
+        #     for _out in out:
+        #         outs.append(resize(
+        #             input=_out,
+        #             size=img.shape[2:],
+        #             mode='bilinear',
+        #             align_corners=self.align_corners
+        #         ))
+        #     return outs if self.training else outs[0]
         out = resize(
             input=out,
             size=img.shape[2:],
             mode='bilinear',
             align_corners=self.align_corners)
         outs.append(out)
-        if self.with_auxiliary_head and self.training:
-            aux_outs = self._forward_auxiliary_head(x)
-            for aux_out in aux_outs:
-                outs.append(
-                    resize(
-                        input=aux_out,
-                        size=img.shape[2:],
-                        mode='bilinear',
-                        align_corners=self.align_corners
-                    )
-                )
+        # if self.with_auxiliary_head and self.training:
+        #     aux_outs = self._forward_auxiliary_head(x)
+        #     for aux_out in aux_outs:
+        #         outs.append(
+        #             resize(
+        #                 input=aux_out,
+        #                 size=img.shape[2:],
+        #                 mode='bilinear',
+        #                 align_corners=self.align_corners
+        #             )
+        #         )
+        a = outs if self.training else outs[0]
         return outs if self.training else outs[0] # return list of tensors if training else tensor of main head

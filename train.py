@@ -90,7 +90,7 @@ if __name__ == '__main__':
             project=wandb_project,
             entity=wandb_entity,
             name=wandb_name,
-            dir=wandb_dir,
+            # dir=wandb_dir,
             group=wandb_group
         )
 
@@ -99,6 +99,9 @@ if __name__ == '__main__':
     model.init_weights()
     model = model.to(device)
     summary(model, input_size=(1,3,352,352))
+    # from pthflops import count_ops
+    # inp = torch.rand(1,3,352,352).to(device)
+    # count_ops(model, inp)
     # dataset
     train_dataset = ActiveDataset(
         train_images,
