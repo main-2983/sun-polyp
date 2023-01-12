@@ -343,3 +343,92 @@ class LAPHead_v2_3(BaseDecodeHead):
         out = self.cls_seg(out)
 
         return out
+
+
+# Add one more level of concatenation
+@HEADS.register_module()
+class LAPHead_v2_4(BaseDecodeHead):
+    def __init__(self,
+                 interpolate_mode='bilinear',
+                 **kwargs):
+        super().__init__(
+            input_transform='multiple_select',
+            **kwargs
+        )
+        self.interpolate_mode = interpolate_mode
+        num_inputs = len(self.in_channels)
+
+        assert num_inputs == len(self.in_index)
+
+        self.convs = nn.ModuleList()
+        for i in range(num_inputs):
+            self.convs.append(
+                ConvModule(
+                    in_channels=self.in_channels[i],
+                    out_channels=self.channels,
+                    kernel_size=3,
+                    padding=1,
+                    norm_cfg=self.norm_cfg,
+                    act_cfg=self.act_cfg))
+
+        # feature fusion between adjacent levels
+        self.linear_projections = nn.ModuleList()
+        for i in range(num_inputs):
+            self.linear_projections.append(
+                ConvModule(
+                    in_channels=self.channels * 2,
+                    out_channels=self.channels,
+                    kernel_size=1,
+                    stride=1,
+                    norm_cfg=self.norm_cfg,
+                    act_cfg=self.act_cfg
+                )
+            )
+
+        self.se_module = SELayer(
+            channels=self.channels * num_inputs
+        )
+        self.fusion_conv = ConvModule(
+            in_channels=self.channels * num_inputs,
+            out_channels=self.channels,
+            kernel_size=1,
+            norm_cfg=self.norm_cfg)
+
+    def forward(self, inputs):
+        # inputs: 1/4, 1/8, 1/16, 1/32
+        inputs = self._transform_inputs(inputs)
+        for idx in range(len(inputs)):
+            x = inputs[idx]
+            conv = self.convs[idx]
+            inputs[idx] = resize(
+                input=conv(x),
+                size=inputs[0].shape[2:],
+                mode=self.interpolate_mode,
+                align_corners=self.align_corners
+            )
+
+        # outs: 1/32 + 1/16, 1/16 + 1/8, 1/8 + 1/4, 1/4 + 1/32
+        outs = []
+        for idx in range(len(inputs) - 1, -1, -1):
+            linear_prj = self.linear_projections[idx]
+            # cat first 2 from inputs
+            if idx == len(inputs) - 1:
+                x1 = inputs[idx]
+                x2 = inputs[idx - 1]
+            # if not first 2 then cat from prev outs and inputs
+            else:
+                x1 = _out
+                x2 = inputs[idx - 1]
+            x = torch.cat([x1, x2], dim=1)
+            _out = linear_prj(x)
+            outs.append(_out)
+
+        out = torch.cat(outs, dim=1)
+        out = self.se_module(out)
+        out = self.fusion_conv(out)
+        # perform identity mapping
+        out = outs[-2] + out
+
+        out = self.cls_seg(out)
+
+        return out
