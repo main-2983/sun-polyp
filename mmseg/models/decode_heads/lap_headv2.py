@@ -206,40 +206,35 @@ class LAPHead_v2_2(BaseDecodeHead):
     def forward(self, inputs):
         # Receive 4 stage backbone feature map: 1/4, 1/8, 1/16, 1/32
         inputs = self._transform_inputs(inputs)
-        # forward ppm
-        inputs = list(inputs)
-        inputs[-1] = self.forward_ppm(inputs)
-        inputs[-1] = resize(input=inputs[-1],
-                            size=inputs[0].shape[2:],
-                            mode=self.interpolate_mode,
-                            align_corners=self.align_corners)
-        # 1/32, 1/16, 1/8, 1/4
-        _inputs = [inputs[-1]]
-        for idx in range(len(inputs) - 2, -1, -1):
+        for idx in range(len(inputs)):
             x = inputs[idx]
-            conv = self.convs[idx]
-            _inputs.append(
-                resize(
+            if idx != (len(inputs) - 1):
+                conv = self.convs[idx]
+                inputs[idx] = resize(
                     input=conv(x),
                     size=inputs[0].shape[2:],
                     mode=self.interpolate_mode,
-                    align_corners=self.align_corners))
-        _inputs = _inputs[::-1] # 1/32, 1/16, 1/8, 1/4 -> 1/4, 1/8, 1/16, 1/32
+                    align_corners=self.align_corners
+                )
+            else:
+                inputs[idx] = resize(
+                    input=self.forward_ppm(inputs),
+                    size=inputs[0].shape[2:],
+                    mode=self.interpolate_mode,
+                    align_corners=self.align_corners
+                )
         # slow concatenate
-        _out = torch.empty(
-            _inputs[0].shape
-        )
-        outs = [_inputs[-1]]
-        for idx in range(len(_inputs) - 1, 0, -1):
+        outs = [inputs[-1]]
+        for idx in range(len(inputs) - 1, 0, -1):
             linear_prj = self.linear_projections[idx - 1]
             # cat first 2 from _inputs
-            if idx == len(_inputs) - 1:
-                x1 = _inputs[idx]
-                x2 = _inputs[idx - 1]
+            if idx == len(inputs) - 1:
+                x1 = inputs[idx]
+                x2 = inputs[idx - 1]
             # if not first 2 then cat from prev outs and _inputs
             else:
                 x1 = _out
-                x2 = _inputs[idx - 1]
+                x2 = inputs[idx - 1]
             x = torch.cat([x1, x2], dim=1)
             _out = linear_prj(x)
             outs.append(_out)
