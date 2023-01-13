@@ -571,24 +571,20 @@ class LAPHead_v2_6(BaseDecodeHead):
         assert num_inputs == len(self.in_index)
 
         # Add PPM
-        self.ppm = nn.Sequential(
-            PPM(
-                in_channels=self.in_channels[-1],
-                pool_scales=(1, 2, 3, 6),
-                channels=128,
-                conv_cfg=None,
-                norm_cfg=None,
-                act_cfg=self.act_cfg,
-                align_corners=self.align_corners
-            ),
-            ConvModule(
-                in_channels=self.in_channels[-1] + len([1, 2, 3, 6]) * 128,
-                out_channels=self.channels,
-                kernel_size=1,
-                act_cfg=self.act_cfg,
-                norm_cfg=self.norm_cfg
-            )
-        )
+        self.ppm = PPM(
+            in_channels=self.in_channels[-1],
+            pool_scales=(1, 2, 3, 6),
+            channels=128,
+            conv_cfg=None,
+            norm_cfg=None,
+            act_cfg=self.act_cfg,
+            align_corners=self.align_corners)
+        self.bottleneck = ConvModule(
+            in_channels=self.in_channels[-1] + len([1, 2, 3, 6]) * 128,
+            out_channels=self.channels,
+            kernel_size=1,
+            act_cfg=self.act_cfg,
+            norm_cfg=self.norm_cfg)
 
         self.convs = nn.ModuleList()
         for i in range(num_inputs - 1):
@@ -627,7 +623,10 @@ class LAPHead_v2_6(BaseDecodeHead):
     def forward_ppm(self, inputs):
         # Forward 1/32 to PPA
         x = inputs[-1]
-        out = self.ppm(x)
+        outs = [x]
+        outs.extend(self.ppm(x))
+        out = torch.cat(outs, dim=1)
+        out = self.bottleneck(out)
         return out
 
     def forward(self, inputs):
