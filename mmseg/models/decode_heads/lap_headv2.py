@@ -675,3 +675,130 @@ class LAPHead_v2_6(BaseDecodeHead):
         out = self.cls_seg(out)
 
         return out
+
+
+# New concatenation, move concatenation one level down
+# Add PPA
+@HEADS.register_module()
+class LAPHead_v2_7(BaseDecodeHead):
+    def __init__(self,
+                 interpolate_mode='bilinear',
+                 ppa_act=None,
+                 ppa_scales=(1, 2, 3, 6),
+                 **kwargs):
+        super().__init__(
+            input_transform='multiple_select',
+            **kwargs
+        )
+        self.interpolate_mode = interpolate_mode
+        num_inputs = len(self.in_channels)
+
+        assert num_inputs == len(self.in_index)
+
+        # Add PPA
+        self.ppa = nn.Sequential(
+            PyramidPoolingAttention(
+                channels=self.in_channels[-1],
+                act_cfg=ppa_act,
+                pool_scales=ppa_scales
+            ),
+            ConvModule(
+                in_channels=self.in_channels[-1],
+                out_channels=self.channels,
+                kernel_size=1,
+                act_cfg=self.act_cfg,
+                norm_cfg=self.norm_cfg
+            )
+        )
+
+        self.convs = nn.ModuleList()
+        for i in range(num_inputs - 1):
+            self.convs.append(
+                ConvModule(
+                    in_channels=self.in_channels[i],
+                    out_channels=self.channels,
+                    kernel_size=3,
+                    padding=1,
+                    norm_cfg=self.norm_cfg,
+                    act_cfg=self.act_cfg))
+
+        # feature fusion between adjacent levels
+        self.linear_projections = nn.ModuleList()
+        for i in range(num_inputs - 1):
+            self.linear_projections.append(
+                ConvModule(
+                    in_channels=self.channels * 2,
+                    out_channels=self.channels,
+                    kernel_size=1,
+                    stride=1,
+                    norm_cfg=self.norm_cfg,
+                    act_cfg=self.act_cfg
+                )
+            )
+
+        self.se_module = SELayer(
+            channels=self.channels * num_inputs
+        )
+        self.fusion_conv = ConvModule(
+            in_channels=self.channels * num_inputs,
+            out_channels=self.channels,
+            kernel_size=1,
+            norm_cfg=self.norm_cfg)
+
+    def forward_ppa(self, inputs):
+        # Forward 1/32 to PPA
+        x = inputs[-1]
+        out = self.ppa(x)
+        return out
+
+    def forward(self, inputs):
+        # inputs: 1/4, 1/8, 1/16, 1/32
+        inputs = self._transform_inputs(inputs)
+        for idx in range(len(inputs)):
+            x = inputs[idx]
+            if idx != (len(inputs) - 1):
+                conv = self.convs[idx]
+                inputs[idx] = resize(
+                    input=conv(x),
+                    size=inputs[0].shape[2:],
+                    mode=self.interpolate_mode,
+                    align_corners=self.align_corners
+                )
+            else:
+                inputs[idx] = resize(
+                    input=self.forward_ppa(inputs),
+                    size=inputs[0].shape[2:],
+                    mode=self.interpolate_mode,
+                    align_corners=self.align_corners
+                )
+
+        # new concatenation order:
+        # 1/16 + 1/8 -> 1/8 + 1/4 -> 1/4 + 1/32
+        # rearange inputs to 1/32, 1/4, 1/8, 1/16
+        inputs = inputs[-1:] + inputs[0:-1]
+        # 1/16, 1/16 + 1/8, 1/8 + 1/4, 1/4 + 1/32
+        outs = [inputs[-1]]
+        # idx: 3, 2, 1
+        for idx in range(len(inputs) - 1, 0, -1):
+            linear_prj = self.linear_projections[idx - 1]
+            # cat first 2 from inputs
+            if idx == len(inputs) - 1:
+                x1 = inputs[idx]
+                x2 = inputs[idx - 1]
+            # if not first 2 then cat from prev outs and inputs
+            else:
+                x1 = _out
+                x2 = inputs[idx - 1]
+            x = torch.cat([x1, x2], dim=1)
+            _out = linear_prj(x)
+            outs.append(_out)
+
+        out = torch.cat(outs, dim=1)
+        out = self.se_module(out)
+        out = self.fusion_conv(out)
+        # perform identity mapping
+        out = outs[-2] + out
+
+        out = self.cls_seg(out)
+
+        return out
