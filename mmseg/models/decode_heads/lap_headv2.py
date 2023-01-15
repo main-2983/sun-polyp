@@ -8,7 +8,7 @@ from mmseg.models.decode_heads.decode_head import BaseDecodeHead
 from mmseg.ops import resize
 from mmseg.models.utils import SELayer
 from mmseg.models.utils.pyramid_pooling_attention import PyramidPoolingAttention, PyramidPoolingAttentionv2
-from mmseg.models.utils.strip_attention import StripPoolingAttention
+from mmseg.models.utils.strip_attention import *
 from mmseg.models.utils.triplet_attention import *
 from mmseg.models.utils.cbam_bam import BAMSpatial
 from mmseg.models.utils.scale import Scale
@@ -781,6 +781,98 @@ class LAPHead_v2_7(BaseDecodeHead):
         # idx: 3, 2, 1
         for idx in range(len(inputs) - 1, 0, -1):
             linear_prj = self.linear_projections[idx - 1]
+            # cat first 2 from inputs
+            if idx == len(inputs) - 1:
+                x1 = inputs[idx]
+                x2 = inputs[idx - 1]
+            # if not first 2 then cat from prev outs and inputs
+            else:
+                x1 = _out
+                x2 = inputs[idx - 1]
+            x = torch.cat([x1, x2], dim=1)
+            _out = linear_prj(x)
+            outs.append(_out)
+
+        out = torch.cat(outs, dim=1)
+        out = self.se_module(out)
+        out = self.fusion_conv(out)
+        # perform identity mapping
+        out = outs[-2] + out
+
+        out = self.cls_seg(out)
+
+        return out
+
+
+# v2_4,
+# Replace FRM with MSStripConvAttn
+@HEADS.register_module()
+class LAPHead_v2_8(BaseDecodeHead):
+    def __init__(self,
+                 interpolate_mode='bilinear',
+                 strip_kernels=(3, 5, 7),
+                 strip_act=None,
+                 strip_norm=None,
+                 **kwargs):
+        super().__init__(
+            input_transform='multiple_select',
+            **kwargs
+        )
+        self.interpolate_mode = interpolate_mode
+        num_inputs = len(self.in_channels)
+
+        assert num_inputs == len(self.in_index)
+
+        self.convs = nn.ModuleList()
+        for i in range(num_inputs):
+            self.convs.append(
+                MSStripConvAttn(
+                    in_channels=self.in_channels[i],
+                    out_channels=self.channels,
+                    kernel_sizes=strip_kernels,
+                    act_cfg=strip_act,
+                    norm_cfg=strip_norm))
+
+        # feature fusion between adjacent levels
+        self.linear_projections = nn.ModuleList()
+        for i in range(num_inputs):
+            self.linear_projections.append(
+                ConvModule(
+                    in_channels=self.channels * 2,
+                    out_channels=self.channels,
+                    kernel_size=1,
+                    stride=1,
+                    norm_cfg=self.norm_cfg,
+                    act_cfg=self.act_cfg
+                )
+            )
+
+        self.se_module = SELayer(
+            channels=self.channels * num_inputs
+        )
+        self.fusion_conv = ConvModule(
+            in_channels=self.channels * num_inputs,
+            out_channels=self.channels,
+            kernel_size=1,
+            norm_cfg=self.norm_cfg)
+
+    def forward(self, inputs):
+        # inputs: 1/4, 1/8, 1/16, 1/32
+        inputs = self._transform_inputs(inputs)
+        for idx in range(len(inputs)):
+            x = inputs[idx]
+            conv = self.convs[idx]
+            inputs[idx] = resize(
+                input=conv(x),
+                size=inputs[0].shape[2:],
+                mode=self.interpolate_mode,
+                align_corners=self.align_corners
+            )
+
+        # outs: 1/32 + 1/16, 1/16 + 1/8, 1/8 + 1/4, 1/4 + 1/32
+        outs = []
+        for idx in range(len(inputs) - 1, -1, -1):
+            linear_prj = self.linear_projections[idx]
             # cat first 2 from inputs
             if idx == len(inputs) - 1:
                 x1 = inputs[idx]
