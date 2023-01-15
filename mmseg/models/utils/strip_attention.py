@@ -3,6 +3,10 @@ import torch.nn as nn
 from mmcv.cnn import ConvModule, build_activation_layer
 
 
+__all__ = [
+    'StripPoolingAttention', 'MSStripConvAttn'
+]
+
 class StripPoolingAttention(nn.Module):
     """
     References: https://arxiv.org/pdf/2003.13328.pdf
@@ -70,3 +74,62 @@ class StripPoolingAttention(nn.Module):
         return x * weight
 
 
+class MSStripConvAttn(nn.Module):
+    def __init__(self,
+                 in_channels,
+                 out_channels,
+                 kernel_sizes=(3, 5, 7),
+                 act_cfg=None,
+                 norm_cfg=None):
+        super(MSStripConvAttn, self).__init__()
+        self.strip_convs = nn.ModuleList()
+        for kernel_size in kernel_sizes:
+            strip_scale_i = nn.Sequential(
+                ConvModule(
+                    in_channels=in_channels,
+                    out_channels=in_channels,
+                    kernel_size=(1, kernel_size),
+                    padding=(0, kernel_size//2),
+                    groups=in_channels,
+                    act_cfg=act_cfg,
+                    norm_cfg=norm_cfg
+                ),
+                ConvModule(
+                    in_channels=in_channels,
+                    out_channels=in_channels,
+                    kernel_size=(kernel_size, 1),
+                    padding=(kernel_size//2, 0),
+                    groups=in_channels,
+                    act_cfg=act_cfg,
+                    norm_cfg=norm_cfg
+                )
+            )
+            self.strip_convs.append(strip_scale_i)
+        self.pw = ConvModule(
+            in_channels=in_channels,
+            out_channels=in_channels,
+            kernel_size=1,
+            padding=0,
+            act_cfg=None
+        )
+
+        self.pwconv = ConvModule(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=1,
+            padding=0,
+            act_cfg=None
+        )
+
+    def forward(self, x):
+        weights = []
+        for conv in self.strip_convs:
+            weights.append(
+                conv(x)
+            )
+        weights = sum(weights)
+        weights = self.pw(weights)
+        out = weights * x
+        out = self.pwconv(out)
+
+        return out
