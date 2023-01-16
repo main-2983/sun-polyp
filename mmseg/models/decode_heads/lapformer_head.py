@@ -935,7 +935,6 @@ class LAPFormerHead_PPM_RemConcat_new_3(BaseDecodeHead):
         inputs = self._transform_inputs(inputs)
         # forward ppm
         inputs = list(inputs)
-        RFM_14 = inputs[0]
         ppm_output = self.forward_ppm(inputs)
         inputs[-1] = resize(input=ppm_output,
                             size=inputs[0].shape[2:],
@@ -952,7 +951,7 @@ class LAPFormerHead_PPM_RemConcat_new_3(BaseDecodeHead):
                     size=inputs[0].shape[2:],
                     mode=self.interpolate_mode,
                     align_corners=self.align_corners))
-
+        FRM_14 = _inputs[1]
         # slow concatenate
         _out = torch.empty(
             _inputs[0].shape
@@ -976,7 +975,7 @@ class LAPFormerHead_PPM_RemConcat_new_3(BaseDecodeHead):
         out = self.se_module(outs[-1])
         out = self.fusion_conv(outs[-1])
         # perform identity mapping
-        out = torch.cat([RFM_14, out], dim=1)
+        out = torch.cat([FRM_14, out], dim=1)
         out = self.cls_seg_2(out)
 
         return out
