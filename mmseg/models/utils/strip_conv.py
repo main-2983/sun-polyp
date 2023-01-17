@@ -5,7 +5,7 @@ from mmcv.cnn import ConvModule
 
 
 __all__ = [
-    'SeqStripConv', 'ParStripConv',
+    'SeqStripConv', 'ParStripConv', 'SeqDWStripConv',
     'MultiScaleStripConv'
 ]
 
