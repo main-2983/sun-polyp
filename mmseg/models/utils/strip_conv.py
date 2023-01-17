@@ -156,3 +156,49 @@ class MultiScaleStripConv(nn.Module):
         out = self.pw(outs)
 
         return out
+
+
+class SeqDWStripConv(nn.Module):
+    def __init__(self,
+                 in_channels,
+                 out_channels,
+                 kernel_size=3,
+                 act_cfg=dict(
+                     type='ReLU'
+                 ),
+                 norm_cfg=dict(
+                     type='BN',
+                     requires_grad=True
+                 )):
+        super(SeqDWStripConv, self).__init__()
+        self.conv1 = ConvModule(
+            in_channels=in_channels,
+            out_channels=in_channels,
+            kernel_size=(1, kernel_size),
+            padding=(0, kernel_size//2),
+            act_cfg=act_cfg,
+            norm_cfg=norm_cfg,
+            groups=in_channels
+        )
+        self.conv2 = ConvModule(
+            in_channels=in_channels,
+            out_channels=in_channels,
+            kernel_size=(kernel_size, 1),
+            padding=(kernel_size // 2, 0),
+            act_cfg=act_cfg,
+            norm_cfg=norm_cfg,
+            groups=in_channels
+        )
+        self.pw = ConvModule(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=1,
+            act_cfg=act_cfg,
+            norm_cfg=norm_cfg
+        )
+
+    def forward(self, x):
+        out = self.conv1(x)
+        out = self.conv2(out)
+        out = self.pw(out)
+        return out
