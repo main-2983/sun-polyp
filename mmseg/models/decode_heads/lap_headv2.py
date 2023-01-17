@@ -7,8 +7,9 @@ from mmseg.models.builder import HEADS
 from mmseg.models.decode_heads.decode_head import BaseDecodeHead
 from mmseg.ops import resize
 from mmseg.models.utils import SELayer
-from mmseg.models.utils.pyramid_pooling_attention import PyramidPoolingAttention, PyramidPoolingAttentionv2
+from mmseg.models.utils.pyramid_pooling_attention import PyramidPoolingAttention
 from mmseg.models.utils.strip_attention import *
+from mmseg.models.utils.strip_conv import *
 from mmseg.models.utils.triplet_attention import *
 from mmseg.models.utils.cbam_bam import BAMSpatial
 from mmseg.models.utils.scale import Scale
@@ -1085,7 +1086,8 @@ class LAPHead_v2_20(BaseDecodeHead):
         return out
 
 
-# Keep cat, but add Scale to cat
+# ExFuse + Add + Scale
+# Change 1/32 FRM to StripConv
 @HEADS.register_module()
 class LAPHead_v2_21(BaseDecodeHead):
     def __init__(self,
@@ -1105,14 +1107,25 @@ class LAPHead_v2_21(BaseDecodeHead):
 
         self.convs = nn.ModuleList()
         for i in range(num_inputs):
-            self.convs.append(
-                ConvModule(
-                    in_channels=self.in_channels[i],
-                    out_channels=self.channels,
-                    kernel_size=3,
-                    padding=1,
-                    norm_cfg=self.norm_cfg,
-                    act_cfg=self.act_cfg))
+            if i != num_inputs - 1:
+                self.convs.append(
+                    ConvModule(
+                        in_channels=self.in_channels[i],
+                        out_channels=self.channels,
+                        kernel_size=3,
+                        padding=1,
+                        norm_cfg=self.norm_cfg,
+                        act_cfg=self.act_cfg))
+            else:
+                self.convs.append(
+                    SeqDWStripConv(
+                        in_channels=self.in_channels[-1],
+                        out_channels=self.channels,
+                        kernel_size=3,
+                        act_cfg=self.act_cfg,
+                        norm_cfg=self.norm_cfg
+                    )
+                )
 
         # feature fusion between adjacent levels
         self.linear_projections = nn.ModuleList()
@@ -1120,7 +1133,7 @@ class LAPHead_v2_21(BaseDecodeHead):
         for i in range(num_inputs):
             self.linear_projections.append(
                 ConvModule(
-                    in_channels=self.channels * 2,
+                    in_channels=self.channels,
                     out_channels=self.channels,
                     kernel_size=1,
                     stride=1,
@@ -1167,9 +1180,9 @@ class LAPHead_v2_21(BaseDecodeHead):
                 x1 = _out
                 x2 = inputs[idx - 1]
             if self.scale_pos == 'residual':
-                x = torch.cat([self.pff_scales[idx](x1), x2], dim=1)
+                x = self.pff_scales[idx](x1) + x2
             else:
-                x = torch.cat([x1, self.pff_scales[idx](x2)], dim=1)
+                x = x1 + self.pff_scales[idx](x2)
             _out = linear_prj(x)
             outs.append(_out)
 
