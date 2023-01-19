@@ -1116,6 +1116,18 @@ class LAPFormerHead_PPM_RemConcat_new_4(BaseDecodeHead):
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
 #Model 5: Using Segformer head as neck for Lapformer
 @HEADS.register_module()
 class LAPFormerHead_PPM_RemConcat_new_5(BaseDecodeHead):
@@ -1162,6 +1174,18 @@ class LAPFormerHead_PPM_RemConcat_new_5(BaseDecodeHead):
                     padding=1,
                     norm_cfg=self.norm_cfg,
                     act_cfg=self.act_cfg))
+        
+
+        self.linear_projections_2 = nn.ModuleList()
+        for i in range(num_inputs - 2):
+            self.linear_projections_2.append(
+                ConvModule(
+                    in_channels=self.channels * 2,
+                    out_channels=self.channels,
+                    kernel_size=1,
+                    padding=1,
+                    norm_cfg=self.norm_cfg,
+                    act_cfg=self.act_cfg))
 
         # feature fusion between adjacent levels
         self.linear_projections = nn.ModuleList()
@@ -1194,7 +1218,7 @@ class LAPFormerHead_PPM_RemConcat_new_5(BaseDecodeHead):
         ppm_out = self.bottleneck(ppm_out)
         return ppm_out
 
-    def forward(self, inputs):
+    def forward(self, inputs, inputs_2):
         # Receive 4 stage backbone feature map: 1/4, 1/8, 1/16, 1/32
         inputs = self._transform_inputs(inputs)
         # forward ppm
@@ -1223,6 +1247,7 @@ class LAPFormerHead_PPM_RemConcat_new_5(BaseDecodeHead):
         outs = []
         for idx in range(len(_inputs) - 1, 0, -1):
             linear_prj = self.linear_projections[idx - 1]
+            linear_prj_2 = self.linear_projections_2[idx - 1]
             # cat first 2 from _inputs
             if idx == len(_inputs) - 1:
                 x1 = _inputs[idx]
@@ -1231,8 +1256,11 @@ class LAPFormerHead_PPM_RemConcat_new_5(BaseDecodeHead):
             else:
                 x1 = _out
                 x2 = _inputs[idx - 1]
+                
             x = torch.cat([x1, x2], dim=1)
             _out = linear_prj(x)
+            _out = torch.cat([_out, inputs_2], dim=1)
+            _out = linear_prj_2(_out)
             outs.append(_out)
 
         # out = torch.cat(outs, dim=1)
@@ -1243,6 +1271,20 @@ class LAPFormerHead_PPM_RemConcat_new_5(BaseDecodeHead):
         out = self.cls_seg_2(out)
 
         return out
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 #remove concat
 # @HEADS.register_module()

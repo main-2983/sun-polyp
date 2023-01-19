@@ -98,6 +98,7 @@ class BaseDecodeHead(BaseModule, metaclass=ABCMeta):
             self.sampler = build_pixel_sampler(sampler, context=self)
         else:
             self.sampler = None
+        self.conv_seg_3 = nn.Conv2d(channels * 4, num_classes, kernel_size=1)
         self.conv_seg_2 = nn.Conv2d(channels * 2, num_classes, kernel_size=1)
         self.conv_seg = nn.Conv2d(channels, num_classes, kernel_size=1)
         if dropout_ratio > 0:
@@ -233,6 +234,13 @@ class BaseDecodeHead(BaseModule, metaclass=ABCMeta):
         if self.dropout is not None:
             feat = self.dropout(feat)
         output = self.conv_seg_2(feat)
+        return output
+    
+    def cls_seg_3(self, feat):
+        """Classify each pixel."""
+        if self.dropout is not None:
+            feat = self.dropout(feat)
+        output = self.conv_seg_3(feat)
         return output
 
     @force_fp32(apply_to=('seg_logit', ))

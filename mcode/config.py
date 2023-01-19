@@ -111,7 +111,15 @@ model_cfg = dict(
         num_classes=1,
         norm_cfg=dict(type='BN', requires_grad=True),
         align_corners=False,
-        loss_decode=dict(type='CrossEntropyLoss', use_sigmoid=True, loss_weight=1.0))
+        loss_decode=dict(type='CrossEntropyLoss', use_sigmoid=True, loss_weight=1.0)),
+    neck=dict(
+        type='SegformerHeadToNeck',
+        in_channels=[64, 128, 320, 512],
+        in_index=[0, 1, 2, 3],
+        channels=256,
+        norm_cfg=dict(type='BN', requires_grad=True),
+        align_corners=False,
+    )
 )
 
 # ===============================================================================
