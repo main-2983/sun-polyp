@@ -10,19 +10,19 @@ from .utils import select_device
 from .metrics import AverageMeter
 from .label_assignment import *
 
-
+name_model = "LAPFormerHead_PPM_RemConcat_new_5"
 # config
 # ===============================================================================
 use_wandb = True
-wandb_key = "8ded3c9f35d6afaa05763d5f30bf784e5fcee30a"
-wandb_project = "Seg-Uper"
-wandb_entity = "polyp_segmentation"
-wandb_name = "test_run_wandb"
-wandb_group = "polyp_segment"
+wandb_key = "1424c55fa73c0d5684ab0210260f866920bb498d"
+wandb_project = "Polyp-Research"
+wandb_entity = "ssl-online"
+wandb_name = '0'
+wandb_group = name_model
 # wandb_dir = "~/wandb"
 
 seed = 2022
-device = select_device("cuda:1" if torch.cuda.is_available() else 'cpu')
+device = select_device("cuda:0" if torch.cuda.is_available() else 'cpu')
 num_workers = 4
 
 train_images = glob.glob('TrainDataset/image/*')
@@ -102,7 +102,7 @@ model_cfg = dict(
         drop_path_rate=0.1,
         pretrained = pretrained),
     decode_head=dict(
-        type='LAPFormerHead_removeconcat_PPM',
+        type=name_model,
         # ops='cat',
         in_channels=[64, 128, 320, 512],
         in_index=[0, 1, 2, 3],
