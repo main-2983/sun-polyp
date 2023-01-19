@@ -5,7 +5,7 @@ from mmcv.cnn import ConvModule
 
 
 __all__ = [
-    'SeqStripConv', 'ParStripConv', 'SeqDWStripConv',
+    'SeqStripConv', 'ParStripConv', 'SeqDWStripConv', 'SeqSkipStripConv',
     'MultiScaleStripConv'
 ]
 
@@ -97,6 +97,53 @@ class ParStripConv(nn.Module):
         out = out1 + out2
         out = self.pw(out)
 
+        return out
+
+
+class SeqSkipStripConv(nn.Module):
+    def __init__(self,
+                 in_channels,
+                 out_channels,
+                 kernel_size=3,
+                 act_cfg=dict(
+                     type='ReLU'
+                 ),
+                 norm_cfg=dict(
+                     type='BN',
+                     requires_grad=True
+                 )):
+        super(SeqSkipStripConv, self).__init__()
+        self.conv1 = ConvModule(
+            in_channels=in_channels,
+            out_channels=in_channels,
+            kernel_size=(1, kernel_size),
+            padding=(0, kernel_size//2),
+            act_cfg=act_cfg,
+            norm_cfg=norm_cfg
+        )
+        self.conv2 = ConvModule(
+            in_channels=in_channels,
+            out_channels=in_channels,
+            kernel_size=(kernel_size, 1),
+            padding=(kernel_size // 2, 0),
+            act_cfg=act_cfg,
+            norm_cfg=norm_cfg
+        )
+        self.pw = ConvModule(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=1,
+            act_cfg=act_cfg,
+            norm_cfg=norm_cfg
+        )
+
+    def forward(self, x):
+        residual = x
+        out1 = self.conv1(x)
+        out1 = residual + out1
+        out2 = self.conv2(out1)
+        out2 = out1 + out2
+        out = self.pw(out2)
         return out
 
 
