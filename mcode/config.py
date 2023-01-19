@@ -119,6 +119,7 @@ model_cfg = dict(
         channels=256,
         norm_cfg=dict(type='BN', requires_grad=True),
         align_corners=False,
+        num_classes=1
     )
 )
 
