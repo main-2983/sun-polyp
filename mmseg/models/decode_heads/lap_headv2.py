@@ -1139,12 +1139,10 @@ class LAPHead_v2_25(BaseDecodeHead):
                         act_cfg=self.act_cfg))
             else:
                 self.convs.append(
-                    ConvModule(
+                    LargeKernelDWConv(
                         in_channels=self.in_channels[i],
                         out_channels=self.channels,
-                        kernel_size=3,
-                        dilation=3,
-                        padding=3,
+                        kernel_size=5,
                         norm_cfg=self.norm_cfg,
                         act_cfg=self.act_cfg)
                 )
