@@ -1002,6 +1002,7 @@ class LAPHead_v2_24(BaseDecodeHead):
     def __init__(self,
                  interpolate_mode='bilinear',
                  scale_pos='residual',
+                 dilation_rate=3,
                  **kwargs):
         super().__init__(
             input_transform='multiple_select',
@@ -1031,8 +1032,8 @@ class LAPHead_v2_24(BaseDecodeHead):
                         in_channels=self.in_channels[i],
                         out_channels=self.channels,
                         kernel_size=3,
-                        dilation=3,
-                        padding=3,
+                        dilation=dilation_rate,
+                        padding=dilation_rate,
                         norm_cfg=self.norm_cfg,
                         act_cfg=self.act_cfg)
                 )
