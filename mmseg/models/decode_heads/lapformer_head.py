@@ -1177,13 +1177,12 @@ class LAPFormerHead_PPM_RemConcat_new_5(BaseDecodeHead):
         
 
         self.linear_projections_2 = nn.ModuleList()
-        for i in range(num_inputs - 2):
+        for i in range(num_inputs - 1):
             self.linear_projections_2.append(
                 ConvModule(
                     in_channels=self.channels * 2,
                     out_channels=self.channels,
                     kernel_size=1,
-                    padding=1,
                     norm_cfg=self.norm_cfg,
                     act_cfg=self.act_cfg))
 
@@ -1256,9 +1255,9 @@ class LAPFormerHead_PPM_RemConcat_new_5(BaseDecodeHead):
             else:
                 x1 = _out
                 x2 = _inputs[idx - 1]
-                
-            x = torch.cat([x1, x2], dim=1)
-            _out = linear_prj(x)
+
+            _out = torch.add(x1, x2)
+            # _out = linear_prj(x)
             _out = torch.cat([_out, inputs_2], dim=1)
             _out = linear_prj_2(_out)
             outs.append(_out)
@@ -1267,8 +1266,8 @@ class LAPFormerHead_PPM_RemConcat_new_5(BaseDecodeHead):
         out = self.se_module(outs[-1])
         out = self.fusion_conv(outs[-1])
         # perform identity mapping
-        out = torch.cat([outs[-1], out], dim=1)
-        out = self.cls_seg_2(out)
+        out = torch.add(outs[-1], out)
+        out = self.cls_seg(out)
 
         return out
 

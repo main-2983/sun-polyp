@@ -13,7 +13,7 @@ from .label_assignment import *
 name_model = "LAPFormerHead_PPM_RemConcat_new_5"
 # config
 # ===============================================================================
-use_wandb = True
+use_wandb = False
 wandb_key = "1424c55fa73c0d5684ab0210260f866920bb498d"
 wandb_project = "Polyp-Research"
 wandb_entity = "ssl-online"
@@ -82,7 +82,7 @@ label_vis_kwargs = {
     'type': None
 }
 
-pretrained = "pretrained/mit_b1_mmseg.pth"
+# pretrained = "pretrained/mit_b1_mmseg.pth"
 model_cfg = dict(
     type='SunSegmentor',
     backbone=dict(
@@ -100,7 +100,7 @@ model_cfg = dict(
         drop_rate=0.0,
         attn_drop_rate=0.0,
         drop_path_rate=0.1,
-        pretrained = pretrained),
+        pretrained = None),
     decode_head=dict(
         type=name_model,
         # ops='cat',
