@@ -908,7 +908,7 @@ class LAPHead_v2_20(BaseDecodeHead):
             input_transform='multiple_select',
             **kwargs
         )
-        assert scale_pos in ['residual', 'prev']
+        assert scale_pos in ['residual', 'layer']
         self.scale_pos = scale_pos
         self.interpolate_mode = interpolate_mode
         num_inputs = len(self.in_channels)
@@ -941,7 +941,8 @@ class LAPHead_v2_20(BaseDecodeHead):
                 )
             )
             self.pff_scales.append(
-                Scale(channels=self.channels)
+                Scale(channels=self.channels,
+                      init_val=1.0 if scale_pos == 'residual' else 1e-5)
             )
 
         self.se_module = SELayer(
