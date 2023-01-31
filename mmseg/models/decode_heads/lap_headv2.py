@@ -999,7 +999,7 @@ class LAPHead_v2_20(BaseDecodeHead):
 # ExFuse + Add + Scale
 # 1/32 FRM -> OSA Conv
 @HEADS.register_module()
-class LAPHead_v2_v21(BaseDecodeHead):
+class LAPHead_v2_21(BaseDecodeHead):
     def __init__(self,
                  interpolate_mode='bilinear',
                  scale_pos='residual',
