@@ -1176,15 +1176,15 @@ class LAPFormerHead_PPM_RemConcat_new_5(BaseDecodeHead):
                     act_cfg=self.act_cfg))
         
 
-        self.linear_projections_2 = nn.ModuleList()
-        for i in range(num_inputs - 1):
-            self.linear_projections_2.append(
-                ConvModule(
-                    in_channels=self.channels * 2,
-                    out_channels=self.channels,
-                    kernel_size=1,
-                    norm_cfg=self.norm_cfg,
-                    act_cfg=self.act_cfg))
+        # self.linear_projections_2 = nn.ModuleList()
+        # for i in range(num_inputs - 1):
+        #     self.linear_projections_2.append(
+        #         ConvModule(
+        #             in_channels=self.channels * 2,
+        #             out_channels=self.channels,
+        #             kernel_size=1,
+        #             norm_cfg=self.norm_cfg,
+        #             act_cfg=self.act_cfg))
 
         # feature fusion between adjacent levels
         self.linear_projections = nn.ModuleList()
@@ -1245,8 +1245,8 @@ class LAPFormerHead_PPM_RemConcat_new_5(BaseDecodeHead):
         )
         outs = []
         for idx in range(len(_inputs) - 1, 0, -1):
-            linear_prj = self.linear_projections[idx - 1]
-            linear_prj_2 = self.linear_projections_2[idx - 1]
+            # linear_prj = self.linear_projections[idx - 1]
+            linear_prj_2 = self.linear_projections[idx - 1]
             # cat first 2 from _inputs
             if idx == len(_inputs) - 1:
                 x1 = _inputs[idx]
@@ -1276,6 +1276,7 @@ class LAPFormerHead_PPM_RemConcat_new_5(BaseDecodeHead):
 
 
 
+#Model 6: remove 1/16 and 1/8 at segformer_head
 
 
 

@@ -98,7 +98,7 @@ class BaseDecodeHead(BaseModule, metaclass=ABCMeta):
             self.sampler = build_pixel_sampler(sampler, context=self)
         else:
             self.sampler = None
-        self.conv_seg_3 = nn.Conv2d(channels * 4, num_classes, kernel_size=1)
+        # self.conv_seg_3 = nn.Conv2d(channels * 4, num_classes, kernel_size=1)
         self.conv_seg_2 = nn.Conv2d(channels * 2, num_classes, kernel_size=1)
         self.conv_seg = nn.Conv2d(channels, num_classes, kernel_size=1)
         if dropout_ratio > 0:
