@@ -897,7 +897,7 @@ class LAPHead_v2_9(BaseDecodeHead):
 
 
 # Change cat -> add in PFF but with Scale
-# Scale can be add in 'residual' or output from prev PFF or both
+# Scale can be add in 'residual' or output from prev PFF
 @HEADS.register_module()
 class LAPHead_v2_20(BaseDecodeHead):
     def __init__(self,
