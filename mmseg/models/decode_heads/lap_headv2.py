@@ -1043,7 +1043,7 @@ class LAPHead_v2_11(BaseDecodeHead):
                     Scale(channels=self.channels,
                           init_val=1.0),
                     Scale(channels=self.channels,
-                          init_val=1e-5)
+                          init_val=1e-2)
                 ])
             )
 
