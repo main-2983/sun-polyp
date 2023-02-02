@@ -31,6 +31,7 @@ from .uper_head import UPerHead
 from .uper_LRC_head import UperLRCHead
 from .lapformer_head import LAPFormerHead
 from .lap_headv2 import *
+from .lap_headv2_ds import *
 
 __all__ = [
     'FCNHead', 'PSPHead', 'ASPPHead', 'PSAHead', 'NLHead', 'GCHead', 'CCHead',
