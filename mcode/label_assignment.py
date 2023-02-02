@@ -19,8 +19,7 @@ class LabelVis:
         self.strategy = strategy
         self.num_samples = num_samples
         self.img_idxs = [i for i in range(num_samples)]
-        if img_names is not None:
-            self.img_names = img_names
+        self.img_names = img_names
         assert type in ['iter', 'epoch', None]
         self.type = type
         self.rate = rate
@@ -129,4 +128,24 @@ def label_assignment(preds: List[torch.Tensor], target: torch.Tensor=None,
         return [target] * len(preds)
     else:
         targets = assign_func(preds, target, **kwargs)
+        return targets
+
+
+@torch.no_grad()
+def strategy_2(preds: List[torch.Tensor], target: torch.Tensor=None, num_outs=3,
+               cur_ep=None, total_eps=20, frac=0.8):
+    ep_to_change = int(total_eps * frac)
+    if cur_ep <= ep_to_change:
+        targets = [target] * len(preds)
+        return targets
+    else:
+        targets = []
+        targets.append(target)
+        aux_targets = []
+        for i in range(num_outs):
+            pred = preds[0]
+            pred = pred.sigmoid()
+            pred = (pred - pred.min()) / (pred.max() - pred.min() + 1e-8)
+            aux_targets.append(pred)
+        targets.extend(aux_targets)
         return targets
