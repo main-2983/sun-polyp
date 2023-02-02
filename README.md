@@ -9,7 +9,7 @@ some useful debug tools:
 - Per channel visualization
 - Model params and flops count
 
-This project is partially supported by Sun-Asterisk Inc.
+This project belongs to Sun-Asterisk Inc.
 
 # Installation 
 ## Install pytorch
