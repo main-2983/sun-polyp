@@ -1,3 +1,16 @@
+# Introduction
+This is an open-source research library for polyp segmentation. 
+Model configuration follows OpenMMLab style while other is implemented by us to conduct 
+experiments faster. 
+
+It helps you have better understanding of your model by providing 
+some useful debug tools: 
+- CAM-based visualization
+- Per channel visualization
+- Model params and flops count
+
+This project is partially supported by Sun-Asterisk Inc.
+
 # Installation 
 ## Install pytorch
 - Version: 1.10.1 (recommended)  
