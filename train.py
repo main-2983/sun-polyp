@@ -130,6 +130,11 @@ if __name__ == '__main__':
                                                               T_max=len(train_loader) * n_eps,
                                                               eta_min=init_lr / 1000)
 
+    # label visualize
+    label_vis_hook = LabelVis(model, save_path, strategy=strategy, **label_vis_kwargs)
+    # --- before train hooks ---
+    label_vis_hook.before_train(train_dataset)
+
     with open(f"{save_path}/exp.log", 'a') as f:
         f.write("Start Training...\n")
 
@@ -144,15 +149,20 @@ if __name__ == '__main__':
                 optimizer.param_groups[0]["lr"] = (ep * batch_id) / (1.0 * total_step) * init_lr
             else:
                 lr_scheduler.step()
-
+            # --- data prepare ---
             n = sample["image"].shape[0]
             x = sample["image"].to(device)
             y = sample["mask"].to(device).to(torch.int64)
+            # --- forward ---
             y_hats = model(x)
+            # --- get targets ---
+            strategy_kwargs['cur_ep'] = ep # uncomment this if not strategy 2
+            targets = label_assignment(y_hats, y, strategy, **strategy_kwargs)
+            # --- loss ---
             losses = []
-            for y_hat in y_hats:
+            for i, (y_hat, y) in enumerate(zip(y_hats, targets)):
                 loss = loss_weights[0] * loss_fns[0](y_hat.squeeze(1), y.squeeze(1).float()) + \
-                       loss_weights[1] * loss_fns[1](y_hat, y)
+                    loss_weights[1] * loss_fns[1](y_hat, y)
                 losses.append(loss)
             losses = sum(_loss for _loss in losses)
             losses.backward()
@@ -169,6 +179,11 @@ if __name__ == '__main__':
             dataset_iou = smp.metrics.iou_score(tp, fp, fn, tn, reduction="micro")
             iou_meter.update(per_image_iou, n)
             dice_meter.update(dataset_iou, n)
+
+            # --- after train iter hooks ---
+            label_vis_hook.after_train_iter(batch_id, ep, strategy_kwargs)
+        # --- after train epoch hooks ---
+        label_vis_hook.after_train_epoch(ep, strategy_kwargs)
 
         LOGGER.info("EP {} TRAIN: LOSS = {}, avg_dice = {}, avg_iou = {}".format(ep, train_loss_meter.avg, dice_meter.avg,
                                                                            iou_meter.avg))
