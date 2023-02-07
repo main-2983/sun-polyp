@@ -2076,21 +2076,17 @@ class LAPHead_v2_25(BaseDecodeHead):
         return out
 
 
-
 # ExFuse + Add + Scale
-# Change 1/4 FRM to DWSeqStripConv
+# Use only 1/32 after PFF
 @HEADS.register_module()
 class LAPHead_v2_30(BaseDecodeHead):
     def __init__(self,
                  interpolate_mode='bilinear',
-                 scale_pos='residual',
                  **kwargs):
         super().__init__(
             input_transform='multiple_select',
             **kwargs
         )
-        assert scale_pos in ['residual', 'prev']
-        self.scale_pos = scale_pos
         self.interpolate_mode = interpolate_mode
         num_inputs = len(self.in_channels)
 
@@ -2098,25 +2094,14 @@ class LAPHead_v2_30(BaseDecodeHead):
 
         self.convs = nn.ModuleList()
         for i in range(num_inputs):
-            if i != 0:
-                self.convs.append(
-                    ConvModule(
-                        in_channels=self.in_channels[i],
-                        out_channels=self.channels,
-                        kernel_size=3,
-                        padding=1,
-                        norm_cfg=self.norm_cfg,
-                        act_cfg=self.act_cfg))
-            else:
-                self.convs.append(
-                    SeqDWStripConv(
-                        in_channels=self.in_channels[0],
-                        out_channels=self.channels,
-                        kernel_size=3,
-                        act_cfg=self.act_cfg,
-                        norm_cfg=self.norm_cfg
-                    )
-                )
+            self.convs.append(
+                ConvModule(
+                    in_channels=self.in_channels[i],
+                    out_channels=self.channels,
+                    kernel_size=3,
+                    padding=1,
+                    norm_cfg=self.norm_cfg,
+                    act_cfg=self.act_cfg))
 
         # feature fusion between adjacent levels
         self.linear_projections = nn.ModuleList()
@@ -2133,14 +2118,19 @@ class LAPHead_v2_30(BaseDecodeHead):
                 )
             )
             self.pff_scales.append(
-                Scale(channels=self.channels)
+                nn.ModuleList([
+                    Scale(channels=self.channels,
+                          init_val=1.0),
+                    Scale(channels=self.channels,
+                          init_val=1e-2)
+                ])
             )
 
         self.se_module = SELayer(
-            channels=self.channels * num_inputs
+            channels=self.channels
         )
         self.fusion_conv = ConvModule(
-            in_channels=self.channels * num_inputs,
+            in_channels=self.channels,
             out_channels=self.channels,
             kernel_size=1,
             norm_cfg=self.norm_cfg)
@@ -2170,246 +2160,17 @@ class LAPHead_v2_30(BaseDecodeHead):
             else:
                 x1 = _out
                 x2 = inputs[idx - 1]
-            if self.scale_pos == 'residual':
-                x = self.pff_scales[idx](x1) + x2
-            else:
-                x = x1 + self.pff_scales[idx](x2)
+            # Layer Scale + Res Scale
+            x = self.pff_scales[idx][0](x1) + self.pff_scales[idx][1](x2)
             _out = linear_prj(x)
             outs.append(_out)
 
-        out = torch.cat(outs, dim=1)
+        out = outs[-1]
         out = self.se_module(out)
         out = self.fusion_conv(out)
         # perform identity mapping
-        out = outs[-2] + out
+        out = outs[-1] + out
 
         out = self.cls_seg(out)
 
         return out
-
-
-# ExFuse + Add + Scale
-# Change 1/4 FRM to SeqStripConv
-@HEADS.register_module()
-class LAPHead_v2_31(BaseDecodeHead):
-    def __init__(self,
-                 interpolate_mode='bilinear',
-                 scale_pos='residual',
-                 strip_kernel=3,
-                 **kwargs):
-        super().__init__(
-            input_transform='multiple_select',
-            **kwargs
-        )
-        assert scale_pos in ['residual', 'prev']
-        self.scale_pos = scale_pos
-        self.interpolate_mode = interpolate_mode
-        num_inputs = len(self.in_channels)
-
-        assert num_inputs == len(self.in_index)
-
-        self.convs = nn.ModuleList()
-        for i in range(num_inputs):
-            if i != 0:
-                self.convs.append(
-                    ConvModule(
-                        in_channels=self.in_channels[i],
-                        out_channels=self.channels,
-                        kernel_size=3,
-                        padding=1,
-                        norm_cfg=self.norm_cfg,
-                        act_cfg=self.act_cfg))
-            else:
-                self.convs.append(
-                    SeqStripConv(
-                        in_channels=self.in_channels[0],
-                        out_channels=self.channels,
-                        kernel_size=strip_kernel,
-                        act_cfg=self.act_cfg,
-                        norm_cfg=self.norm_cfg
-                    )
-                )
-
-        # feature fusion between adjacent levels
-        self.linear_projections = nn.ModuleList()
-        self.pff_scales = nn.ModuleList()
-        for i in range(num_inputs):
-            self.linear_projections.append(
-                ConvModule(
-                    in_channels=self.channels,
-                    out_channels=self.channels,
-                    kernel_size=1,
-                    stride=1,
-                    norm_cfg=self.norm_cfg,
-                    act_cfg=self.act_cfg
-                )
-            )
-            self.pff_scales.append(
-                Scale(channels=self.channels)
-            )
-
-        self.se_module = SELayer(
-            channels=self.channels * num_inputs
-        )
-        self.fusion_conv = ConvModule(
-            in_channels=self.channels * num_inputs,
-            out_channels=self.channels,
-            kernel_size=1,
-            norm_cfg=self.norm_cfg)
-
-    def forward(self, inputs):
-        # inputs: 1/4, 1/8, 1/16, 1/32
-        inputs = self._transform_inputs(inputs)
-        for idx in range(len(inputs)):
-            x = inputs[idx]
-            conv = self.convs[idx]
-            inputs[idx] = resize(
-                input=conv(x),
-                size=inputs[0].shape[2:],
-                mode=self.interpolate_mode,
-                align_corners=self.align_corners
-            )
-
-        # outs: 1/32 + 1/16, 1/16 + 1/8, 1/8 + 1/4, 1/4 + 1/32
-        outs = []
-        for idx in range(len(inputs) - 1, -1, -1):
-            linear_prj = self.linear_projections[idx]
-            # cat first 2 from inputs
-            if idx == len(inputs) - 1:
-                x1 = inputs[idx]
-                x2 = inputs[idx - 1]
-            # if not first 2 then cat from prev outs and inputs
-            else:
-                x1 = _out
-                x2 = inputs[idx - 1]
-            if self.scale_pos == 'residual':
-                x = self.pff_scales[idx](x1) + x2
-            else:
-                x = x1 + self.pff_scales[idx](x2)
-            _out = linear_prj(x)
-            outs.append(_out)
-
-        out = torch.cat(outs, dim=1)
-        out = self.se_module(out)
-        out = self.fusion_conv(out)
-        # perform identity mapping
-        out = outs[-2] + out
-
-        out = self.cls_seg(out)
-
-        return out
-
-
-
-# ExFuse + Add + Scale
-# 1/4 FRM -> SeqSkipStripConv
-@HEADS.register_module()
-class LAPHead_v2_32(BaseDecodeHead):
-    def __init__(self,
-                 interpolate_mode='bilinear',
-                 scale_pos='residual',
-                 strip_kernel=3,
-                 **kwargs):
-        super().__init__(
-            input_transform='multiple_select',
-            **kwargs
-        )
-        assert scale_pos in ['residual', 'prev']
-        self.scale_pos = scale_pos
-        self.interpolate_mode = interpolate_mode
-        num_inputs = len(self.in_channels)
-
-        assert num_inputs == len(self.in_index)
-
-        self.convs = nn.ModuleList()
-        for i in range(num_inputs):
-            if i != 0:
-                self.convs.append(
-                    ConvModule(
-                        in_channels=self.in_channels[i],
-                        out_channels=self.channels,
-                        kernel_size=3,
-                        padding=1,
-                        norm_cfg=self.norm_cfg,
-                        act_cfg=self.act_cfg))
-            else:
-                self.convs.append(
-                    SeqSkipStripConv(
-                        in_channels=self.in_channels[0],
-                        out_channels=self.channels,
-                        kernel_size=strip_kernel,
-                        act_cfg=self.act_cfg,
-                        norm_cfg=self.norm_cfg
-                    )
-                )
-
-        # feature fusion between adjacent levels
-        self.linear_projections = nn.ModuleList()
-        self.pff_scales = nn.ModuleList()
-        for i in range(num_inputs):
-            self.linear_projections.append(
-                ConvModule(
-                    in_channels=self.channels,
-                    out_channels=self.channels,
-                    kernel_size=1,
-                    stride=1,
-                    norm_cfg=self.norm_cfg,
-                    act_cfg=self.act_cfg
-                )
-            )
-            self.pff_scales.append(
-                Scale(channels=self.channels)
-            )
-
-        self.se_module = SELayer(
-            channels=self.channels * num_inputs
-        )
-        self.fusion_conv = ConvModule(
-            in_channels=self.channels * num_inputs,
-            out_channels=self.channels,
-            kernel_size=1,
-            norm_cfg=self.norm_cfg)
-
-    def forward(self, inputs):
-        # inputs: 1/4, 1/8, 1/16, 1/32
-        inputs = self._transform_inputs(inputs)
-        for idx in range(len(inputs)):
-            x = inputs[idx]
-            conv = self.convs[idx]
-            inputs[idx] = resize(
-                input=conv(x),
-                size=inputs[0].shape[2:],
-                mode=self.interpolate_mode,
-                align_corners=self.align_corners
-            )
-
-        # outs: 1/32 + 1/16, 1/16 + 1/8, 1/8 + 1/4, 1/4 + 1/32
-        outs = []
-        for idx in range(len(inputs) - 1, -1, -1):
-            linear_prj = self.linear_projections[idx]
-            # cat first 2 from inputs
-            if idx == len(inputs) - 1:
-                x1 = inputs[idx]
-                x2 = inputs[idx - 1]
-            # if not first 2 then cat from prev outs and inputs
-            else:
-                x1 = _out
-                x2 = inputs[idx - 1]
-            if self.scale_pos == 'residual':
-                x = self.pff_scales[idx](x1) + x2
-            else:
-                x = x1 + self.pff_scales[idx](x2)
-            _out = linear_prj(x)
-            outs.append(_out)
-
-        out = torch.cat(outs, dim=1)
-        out = self.se_module(out)
-        out = self.fusion_conv(out)
-        # perform identity mapping
-        out = outs[-2] + out
-
-        out = self.cls_seg(out)
-
-        return out
-
-
