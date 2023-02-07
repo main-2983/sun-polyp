@@ -72,6 +72,89 @@ class CAM(nn.Module):
         return out
 
 
+
+
+class DAM(nn.ModuleList):
+    """Dual Attention Network for Scene Segmentation.
+
+    This head is the implementation of `DANet
+    <https://arxiv.org/abs/1809.02983>`_.
+
+    Args:
+        pam_channels (int): The channels of Position Attention Module(PAM).
+    """
+
+    def __init__(self, in_channels_DAM, channels_DAM, norm_cfg, act_cfg):
+        super(DAM, self).__init__()
+        self.norm_cfg = norm_cfg
+        self.act_cfg = act_cfg
+        self.pam_channels = in_channels_DAM//32
+
+        self.pam_in_conv = ConvModule(
+            in_channels_DAM,
+            in_channels_DAM//4,
+            kernel_size=1,
+            norm_cfg=self.norm_cfg,
+            act_cfg=self.act_cfg)
+
+        self.pam = PAM(in_channels_DAM//4, self.pam_channels)
+
+        self.pam_out_conv = ConvModule(  # Ở đây có thể thay thế bằng conv 1x1 giống như transformer gốc cũng dùng MLP để tổng hợp.
+            in_channels_DAM//4,
+            in_channels_DAM//4,
+            kernel_size=3,
+            padding=1,
+            norm_cfg=self.norm_cfg,
+            act_cfg=self.act_cfg)
+
+        self.cam_in_conv = ConvModule(
+            in_channels_DAM,
+            in_channels_DAM//4,
+            kernel_size=1,
+            norm_cfg=self.norm_cfg,
+            act_cfg=self.act_cfg)
+
+        self.cam = CAM()
+
+        self.cam_out_conv = ConvModule(
+            in_channels_DAM//4,
+            in_channels_DAM//4,
+            kernel_size=3,
+            padding=1,
+            norm_cfg=self.norm_cfg,
+            act_cfg=self.act_cfg)
+        
+        self.convs = ConvModule(
+            in_channels=in_channels_DAM//4,
+            out_channels=channels_DAM,
+            kernel_size=3,
+            padding=1,
+            norm_cfg=self.norm_cfg,
+            act_cfg=self.act_cfg)
+
+
+    def forward(self, inputs):
+        """Forward function."""
+        x = inputs
+        pam_feat = self.pam_in_conv(x) #thay thành conv 1x1 để giảm chiều channel.
+        pam_feat = self.pam(pam_feat)
+        
+        pam_feat = self.pam_out_conv(pam_feat)
+        # pam_out = self.pam_cls_seg(pam_feat)
+
+        cam_feat = self.cam_in_conv(x)
+        cam_feat = self.cam(cam_feat)
+        pam_feat = self.cam_out_conv(cam_feat)
+        # cam_out = self.cam_cls_seg(cam_feat)
+
+        feat_sum = pam_feat + cam_feat
+        pam_cam_out = self.convs(feat_sum)
+
+        return pam_cam_out
+
+
+
+
 @HEADS.register_module()
 class DAHead(BaseDecodeHead):
     """Dual Attention Network for Scene Segmentation.

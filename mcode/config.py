@@ -10,24 +10,25 @@ from .utils import select_device
 from .metrics import AverageMeter
 from .label_assignment import *
 
-name_model = "LAPFormerHead_PPM_RemConcat_new_5"
+name_model = "LAPFormerHead_PPM_RemConcat_new_10"
+name_wandb = "LAPFormerHead_PPM_RemConcat_new_10"
 # config
 # ===============================================================================
 use_wandb = False
 wandb_key = "1424c55fa73c0d5684ab0210260f866920bb498d"
 wandb_project = "Polyp-Research"
 wandb_entity = "ssl-online"
-wandb_name = '0'
-wandb_group = name_model
+wandb_name = '1'
+wandb_group = name_wandb
 # wandb_dir = "~/wandb"
 
 seed = 2022
 device = select_device("cuda:0" if torch.cuda.is_available() else 'cpu')
 num_workers = 4
 
-train_images = glob.glob('TrainDataset/image/*')
-train_masks = glob.glob('TrainDataset/mask/*')
-test_folder = "TestDataset"
+train_images = glob.glob('./Dataset/TrainDataset/image/*')
+train_masks = glob.glob('./Dataset/TrainDataset/mask/*')
+test_folder = "./Dataset/TestDataset"
 test_images = glob.glob(f'{test_folder}/*/images/*')
 test_masks = glob.glob(f'{test_folder}/*/masks/*')
 
@@ -35,7 +36,7 @@ save_path = "runs/test"
 
 image_size = 352
 
-bs = 16
+bs = 4
 bs_val = 2
 grad_accumulate_rate = 1
 
@@ -82,7 +83,7 @@ label_vis_kwargs = {
     'type': None
 }
 
-# pretrained = "pretrained/mit_b1_mmseg.pth"
+pretrained = "pretrained/mit_b1_mmseg.pth"
 model_cfg = dict(
     type='SunSegmentor',
     backbone=dict(
@@ -100,7 +101,7 @@ model_cfg = dict(
         drop_rate=0.0,
         attn_drop_rate=0.0,
         drop_path_rate=0.1,
-        pretrained = None),
+        pretrained = pretrained),
     decode_head=dict(
         type=name_model,
         # ops='cat',
@@ -112,15 +113,15 @@ model_cfg = dict(
         norm_cfg=dict(type='BN', requires_grad=True),
         align_corners=False,
         loss_decode=dict(type='CrossEntropyLoss', use_sigmoid=True, loss_weight=1.0)),
-    neck=dict(
-        type='SegformerHeadToNeck',
-        in_channels=[64, 128, 320, 512],
-        in_index=[0, 1, 2, 3],
-        channels=256,
-        norm_cfg=dict(type='BN', requires_grad=True),
-        align_corners=False,
-        num_classes=1
-    )
+    # neck=dict(
+    #     type='SegformerHeadToNeck_2',
+    #     in_channels=[64, 512],
+    #     in_index=[0, 3],
+    #     channels=256,
+    #     norm_cfg=dict(type='BN', requires_grad=True),
+    #     align_corners=False,
+    #     num_classes=1
+    # )
 )
 
 # ===============================================================================

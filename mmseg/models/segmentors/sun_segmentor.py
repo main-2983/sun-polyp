@@ -68,7 +68,7 @@ class SunSegmentor(BaseModule):
         x = self.backbone(img)
         if self.with_neck:
             x2 = self.neck(x)
-        return x, x2
+        return x
 
     def _forward_auxiliary_head(self, img):
         aux_logits = []
@@ -84,9 +84,9 @@ class SunSegmentor(BaseModule):
 
     def forward(self, img):
         outs = []
-        x, x2 = self.extract_feat(img)
+        x= self.extract_feat(img)
         
-        out = self.decode_head(x, x2)
+        out = self.decode_head(x)
         # if isinstance(out, list):
         #     for _out in out:
         #         outs.append(resize(
