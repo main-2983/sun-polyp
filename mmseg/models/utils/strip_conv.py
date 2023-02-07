@@ -6,7 +6,7 @@ from mmcv.cnn import ConvModule
 
 __all__ = [
     'SeqStripConv', 'ParStripConv', 'SeqDWStripConv', 'SeqSkipStripConv',
-    'MultiScaleStripConv'
+    'MultiScaleStripConv', 'NormStripConv'
 ]
 
 
@@ -249,3 +249,71 @@ class SeqDWStripConv(nn.Module):
         out = self.conv2(out)
         out = self.pw(out)
         return out
+
+
+class NormStripConv(nn.Module):
+    """
+    This module is a multi branch module.
+    It consists of a normal 3x3 Conv branch and a StripConv branch
+    This is version, the StripConv branch is Sequential Strip Conv
+    The Sequential Strip Conv output is as follow:
+    :math: Y = pwconv(strip_2(strip_1(x)))
+    The whole module output is as follow:
+    :math: Y = conv(x) + pwconv(strip_2(strip_1(x)))
+    """
+    def __init__(self,
+                 in_channels,
+                 out_channels,
+                 kernel_size=3,
+                 act_cfg=dict(
+                     type='ReLU'
+                 ),
+                 norm_cfg=dict(
+                     type='BN',
+                     requires_grad=True
+                 )):
+        super(NormStripConv, self).__init__()
+        pw_act = None if out_channels < in_channels else act_cfg
+        # Normal Conv
+        self.conv = ConvModule(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=kernel_size,
+            padding=kernel_size // 2,
+            act_cfg=act_cfg,
+            norm_cfg=norm_cfg
+        )
+
+        # Sequential Strip Conv
+        self.strip_conv = nn.Sequential(
+            ConvModule(
+                in_channels=in_channels,
+                out_channels=in_channels,
+                kernel_size=(1, kernel_size),
+                padding=(0, kernel_size // 2),
+                norm_cfg=norm_cfg,
+                act_cfg=act_cfg
+            ),
+            ConvModule(
+                in_channels=in_channels,
+                out_channels=in_channels,
+                kernel_size=(kernel_size, 1),
+                padding=(kernel_size // 2, 0),
+                norm_cfg=norm_cfg,
+                act_cfg=act_cfg
+            )
+        )
+        self.pwconv = ConvModule(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=1,
+            norm_cfg=norm_cfg,
+            act_cfg=pw_act
+        )
+
+    def forward(self, x):
+        out1 = self.conv(x)
+        out2 = self.strip_conv(x)
+        out2 = self.pwconv(out2)
+
+        return out1 + out2
