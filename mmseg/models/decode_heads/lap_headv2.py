@@ -2295,6 +2295,7 @@ class LAPHead_v2_30(BaseDecodeHead):
 
 # ExFuse + Add + Scale
 # Use only 1/32 after PFF, then skip connection use 1/4
+@HEADS.register_module()
 class LAPHead_v2_31(BaseDecodeHead):
     def __init__(self,
                  interpolate_mode='bilinear',
