@@ -2469,7 +2469,7 @@ class LAPHead_v2_32(BaseDecodeHead):
                 x1 = _out
                 x2 = inputs[idx - 1]
             # Layer Scale + Res Scale
-            x = self.pff_scales[idx][0](x1) + self.pff_scales[idx][1](x2)
+            x = torch.cat([x1, x2], dim=1)
             _out = linear_prj(x)
             outs.append(_out)
 
