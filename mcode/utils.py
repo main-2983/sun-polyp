@@ -10,6 +10,12 @@ from mmcv.cnn import get_model_complexity_info
 
 from pytorch_lightning import seed_everything
 
+try:
+    from fvcore.nn import FlopCountAnalysis # MACs
+    has_fvcore = True
+except ImportError:
+    has_fvcore = False
+
 
 def adjust_lr(optimizer, init_lr, epoch, decay_rate=0.1, decay_epoch=30):
     decay = decay_rate ** (epoch // decay_epoch)
@@ -98,9 +104,13 @@ def get_model_info(model, tsize):
 
     input_shape = (3, tsize[0], tsize[1])
     flops, params = get_model_complexity_info(model, input_shape)
+    if has_fvcore:
+        macs = FlopCountAnalysis(model, torch.rand(1, c, tsize[0], tsize[1]))
+    else:
+        macs = 0
     split_line = '=' * 30
-    print('{0}\nInput shape: {1}\nFlops: {2}\nParams: {3}\n{0}'.format(
-        split_line, input_shape, flops, params))
+    print('{0}\nInput shape: {1}\nFlops: {2}\nParams: {3}\nMACs: {4}\n{0}'.format(
+        split_line, input_shape, flops, params, macs.total()/1e9))
     print('!!!Please be cautious if you use the results in papers. '
           'You may need to check if all ops are supported and verify that the '
           'flops computation is correct.')
