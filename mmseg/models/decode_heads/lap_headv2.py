@@ -2598,6 +2598,7 @@ class LAPHead_v2_41(BaseDecodeHead):
 class LAPHead_v2_42(BaseDecodeHead):
     def __init__(self,
                  interpolate_mode='bilinear',
+                 skip_scale_val=1.0,
                  **kwargs):
         super().__init__(
             input_transform='multiple_select',
@@ -2651,8 +2652,8 @@ class LAPHead_v2_42(BaseDecodeHead):
             kernel_size=1,
             norm_cfg=self.norm_cfg)
         self.skip_scale = nn.ModuleList([
-            Scale(self.channels, 1.0),
-            Scale(self.channels, 1.0),
+            Scale(self.channels, skip_scale_val),
+            Scale(self.channels, skip_scale_val),
         ])
 
     def forward(self, inputs):
