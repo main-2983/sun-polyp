@@ -10,20 +10,20 @@ from .utils import select_device
 from .metrics import AverageMeter
 from .label_assignment import *
 
-name_model = "LAPFormerHead_PPM_RemConcat_new_10"
-name_wandb = "LAPFormerHead_PPM_RemConcat_new_10"
+name_model = "LAPFormerHead_PPM_RemConcat_new_13"
+name_wandb = "LAPFormerHead_PPM_RemConcat_new_13"
 # config
 # ===============================================================================
-use_wandb = False
+use_wandb = True
 wandb_key = "1424c55fa73c0d5684ab0210260f866920bb498d"
 wandb_project = "Polyp-Research"
 wandb_entity = "ssl-online"
-wandb_name = '1'
+wandb_name = '0'
 wandb_group = name_wandb
 # wandb_dir = "~/wandb"
 
 seed = 2022
-device = select_device("cuda:0" if torch.cuda.is_available() else 'cpu')
+device = select_device("cuda:1" if torch.cuda.is_available() else 'cpu')
 num_workers = 4
 
 train_images = glob.glob('./Dataset/TrainDataset/image/*')
@@ -36,7 +36,7 @@ save_path = "runs/test"
 
 image_size = 352
 
-bs = 4
+bs = 16
 bs_val = 2
 grad_accumulate_rate = 1
 
@@ -83,7 +83,8 @@ label_vis_kwargs = {
     'type': None
 }
 
-pretrained = "pretrained/mit_b1_mmseg.pth"
+# pretrained = "pretrained/mit_b1_mmseg.pth"
+pretrained = "/mnt/sdd/nguyen.van.quan/Researchs/Polyp/pretrained/mit_b1_mmseg.pth"
 model_cfg = dict(
     type='SunSegmentor',
     backbone=dict(
