@@ -125,7 +125,7 @@ if __name__ == '__main__':
     LOGGER.info(f"Valid size: {len(val_dataset)}")
 
     # dataloader
-    train_loader = DataLoader(train_dataset, batch_size=bs, num_workers=num_workers)
+    train_loader = DataLoader(train_dataset, batch_size=bs, num_workers=num_workers, shuffle=True)
     total_step = len(train_loader)
 
     # optimizer
@@ -163,7 +163,7 @@ if __name__ == '__main__':
                 # --- forward ---
                 y_hats = model(x)
                 # --- get targets ---
-                strategy_kwargs['cur_ep'] = ep # uncomment this if not strategy 2
+                #strategy_kwargs['cur_ep'] = ep # uncomment this if not strategy 2
                 targets = label_assignment(y_hats, y, strategy, **strategy_kwargs)
                 # --- loss function ---
                 losses = []
