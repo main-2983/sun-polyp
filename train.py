@@ -118,7 +118,7 @@ if __name__ == '__main__':
     LOGGER.info(f"Valid size: {len(val_dataset)}")
 
     # dataloader
-    train_loader = DataLoader(train_dataset, batch_size=bs, num_workers=num_workers)
+    train_loader = DataLoader(train_dataset, batch_size=bs, num_workers=num_workers, shuffle=True)
     total_step = len(train_loader)
 
     # optimizer
