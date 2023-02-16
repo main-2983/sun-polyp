@@ -2078,6 +2078,7 @@ class LAPFormerHead_PPM_RemConcat_new_13(BaseDecodeHead):
         )
         outs = []
         for idx in range(len(_inputs) - 1, 0, -1):
+            # print("len _inputs: ", len(_inputs), "idx: ", idx)
             linear_prj = self.linear_projections[idx - 1]
             # cat first 2 from _inputs
             if idx == len(_inputs) - 1:
@@ -2139,7 +2140,7 @@ class LAPFormerHead_PPM_RemConcat_new_16(BaseDecodeHead):
         self.linear_projections = nn.ModuleList()
         self.pff_scales = nn.ModuleList()
 
-        for i in range(num_inputs - 1):
+        for i in range(num_inputs):
             self.linear_projections.append(
                 ConvModule(
                     in_channels=self.channels * 2,

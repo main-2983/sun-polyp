@@ -14,6 +14,24 @@ from mmseg.models.builder import build_segmentor
 from mcode import ActiveDataset, get_scores, LOGGER, set_seed_everything, set_logging
 from mcode.config import *
 
+class UnNormalize(object):
+    def __init__(self, mean, std):
+        self.mean = mean
+        self.std = std
+        
+    def __call__(self, tensor):
+        """
+        Args:
+            tensor (Tensor): Tensor image of size (C, H, W) to be normalized.
+        Returns:
+            Tensor: Normalized image.
+        """
+        for t, m, s in zip(tensor, self.mean, self.std):
+            t.mul_(s).add_(m)
+            # The normalize code -> t.sub_(m).div_(s)
+        return tensor
+    
+unorm = UnNormalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225))
 
 def full_val(model):
     print("#" * 20)
@@ -81,8 +99,6 @@ if __name__ == '__main__':
         with open(f"{save_path}/exp.log", 'w') as log_f:
             log_f.write(f"{config_data} \n")
 
-    set_seed_everything(seed)
-
     if use_wandb:
         assert wandb_group is not None, "Please specify wandb group"
         wandb.login(key=wandb_key)
@@ -94,11 +110,6 @@ if __name__ == '__main__':
             group=wandb_group
         )
 
-    # model
-    model = build_segmentor(model_cfg)
-    model.init_weights()
-    model = model.to(device)
-    summary(model, input_size=(1,3,352,352))
     # from pthflops import count_ops
     # inp = torch.rand(1,3,352,352).to(device)
     # count_ops(model, inp)
@@ -125,6 +136,12 @@ if __name__ == '__main__':
     train_loader = DataLoader(train_dataset, batch_size=bs, num_workers=num_workers)
     total_step = len(train_loader)
 
+        # model
+    model = build_segmentor(model_cfg)
+    model.init_weights()
+    model = model.to(device)
+    summary(model, input_size=(1,3,352,352))
+
     # optimizer
     optimizer = torch.optim.AdamW(model.parameters(), init_lr, betas=(0.9, 0.999), weight_decay=0.01)
     lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer,
@@ -134,13 +151,20 @@ if __name__ == '__main__':
     with open(f"{save_path}/exp.log", 'a') as f:
         f.write("Start Training...\n")
 
+    set_seed_everything(seed)
     for ep in range(1, n_eps + 1):
         dice_meter.reset()
         iou_meter.reset()
         train_loss_meter.reset()
         model.train()
-
+        if not os.path.exists(f"{seed}_{name_wandb}/ep_{ep}"):
+            os.makedirs(f"{seed}_{name_wandb}/ep_{ep}")
         for batch_id, sample in enumerate(tqdm(train_loader), start=1):
+            if ep in [1, 2, 3] and batch_id < 91:
+                for i in range(bs):
+                    img_demo = unorm(sample["image"][i]).permute(1, 2, 0).numpy() * 255
+                    img_demo = cv2.cvtColor(img_demo, cv2.COLOR_BGR2RGB)
+                    cv2.imwrite(f"{seed}_{name_wandb}/ep_{ep}/ep_1_image_id_{batch_id}_num_{i}.png", img_demo)
             if ep <= 1:
                 optimizer.param_groups[0]["lr"] = (ep * batch_id) / (1.0 * total_step) * init_lr
             else:
