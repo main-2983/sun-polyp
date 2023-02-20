@@ -12,6 +12,7 @@ import numpy as np
 from mmseg.models.builder import build_segmentor
 
 from mcode import ActiveDataset, get_scores, LOGGER, set_seed_everything, set_logging
+from mcode.sam import SAM
 from mcode.config import *
 
 
@@ -125,10 +126,24 @@ if __name__ == '__main__':
     total_step = len(train_loader)
 
     # optimizer
-    optimizer = torch.optim.AdamW(model.parameters(), init_lr, betas=(0.9, 0.999), weight_decay=0.01)
-    lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer,
-                                                              T_max=len(train_loader) * n_eps,
-                                                              eta_min=init_lr / 1000)
+    if use_SAM:
+        LOGGER.warning("You're using SAM for training, training will be slower than usual")
+        optimizer = SAM(
+            model.parameters(),
+            base_optimizer=optimizer,
+            **optimizer_kwargs
+        )
+        lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer.base_optimizer,
+                                                                  T_max=len(train_loader) * n_eps,
+                                                                  eta_min=init_lr / 1000)
+    else:
+        optimizer = optimizer(
+            model.parameters(),
+            **optimizer_kwargs
+        )
+        lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer,
+                                                                  T_max=len(train_loader) * n_eps,
+                                                                  eta_min=init_lr / 1000)
 
     # label visualize
     label_vis_hook = LabelVis(model, save_path, strategy=strategy, **label_vis_kwargs)
@@ -164,11 +179,24 @@ if __name__ == '__main__':
                 loss = loss_weights[0] * loss_fns[0](y_hat.squeeze(1), y.squeeze(1).float()) + \
                     loss_weights[1] * loss_fns[1](y_hat, y)
                 losses.append(loss)
-            losses = sum(_loss for _loss in losses)
+            losses = sum(l for l in losses)
             losses.backward()
+            # --- optimizer closure (for SAM) ---
+            def closure():
+                # --- 2nd forward ---
+                _y_hats = model(x)
+                # --- 2nd loss calc ---
+                _losses = []
+                for i, (_y_hat, _y) in enumerate(zip(_y_hats, targets)):
+                    _loss = loss_weights[0] * loss_fns[0](_y_hat.squeeze(1), _y.squeeze(1).float()) + \
+                            loss_weights[1] * loss_fns[1](_y_hat, _y)
+                    _losses.append(_loss)
+                _losses = sum(_l for _l in _losses)
+                _losses.backward()
+                return _losses
 
             if batch_id % grad_accumulate_rate == 0:
-                optimizer.step()
+                optimizer.step(closure=closure if use_SAM else None)
                 optimizer.zero_grad()
             y_hat_mask = y_hats[0].sigmoid()
             pred_mask = (y_hat_mask > 0.5).float()
