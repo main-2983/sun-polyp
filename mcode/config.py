@@ -26,7 +26,6 @@ wandb_dir = "./wandb"
 
 # device config
 # ------------------------------------------------
-seed = 2022
 device = select_device("cuda:0" if torch.cuda.is_available() else 'cpu')
 num_workers = 4
 
