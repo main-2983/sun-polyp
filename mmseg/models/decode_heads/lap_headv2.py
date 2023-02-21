@@ -115,7 +115,7 @@ class LAPHead_v2_1(BaseDecodeHead):
 
 # Add one more level of concatenation
 @HEADS.register_module()
-class LAPHead_v2_4(BaseDecodeHead):
+class LAPHead_v2_2(BaseDecodeHead):
     def __init__(self,
                  interpolate_mode='bilinear',
                  **kwargs):
