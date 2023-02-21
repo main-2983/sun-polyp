@@ -6,7 +6,7 @@ from mmseg.models.builder import HEADS
 from mmseg.models.decode_heads.decode_head import BaseDecodeHead
 from mmseg.ops import resize
 from mmseg.models.utils import SELayer
-from mmseg.models.utils.scale import Scale
+# from mmseg.models.utils.scale import Scale
 from .psp_head import PPM
 from .da_head import DAM
 #lapformer origin
@@ -600,7 +600,7 @@ class LAPFormerHead_removeconcat_PPM(BaseDecodeHead):
 
 #Model 1: [1/32, 1/4, 1/8, 1/16] => cat(x[i], x[i - 1])
 @HEADS.register_module()
-class LAPFormerHead_PPM_RemConcat_new(BaseDecodeHead):
+class LAPFormerHead_new(BaseDecodeHead):
     def __init__(self,
                  interpolate_mode='bilinear',
                  pool_scales=(1, 2, 3, 6),
@@ -728,7 +728,7 @@ class LAPFormerHead_PPM_RemConcat_new(BaseDecodeHead):
 
 #Model 2: cat(linear(cat(1/16, 1/4)), FSM_out)
 @HEADS.register_module()
-class LAPFormerHead_PPM_RemConcat_new_2(BaseDecodeHead):
+class LAPFormerHead_new_2(BaseDecodeHead):
     def __init__(self,
                  interpolate_mode='bilinear',
                  pool_scales=(1, 2, 3, 6),
@@ -856,7 +856,7 @@ class LAPFormerHead_PPM_RemConcat_new_2(BaseDecodeHead):
 
 #Model 3: cat(FRM_1/4, FSM_out)
 @HEADS.register_module()
-class LAPFormerHead_PPM_RemConcat_new_3(BaseDecodeHead):
+class LAPFormerHead_new_3(BaseDecodeHead):
     def __init__(self,
                  interpolate_mode='bilinear',
                  pool_scales=(1, 2, 3, 6),
@@ -985,7 +985,7 @@ class LAPFormerHead_PPM_RemConcat_new_3(BaseDecodeHead):
 
 #Model 4: addition a cat(1/32, 1/16)
 @HEADS.register_module()
-class LAPFormerHead_PPM_RemConcat_new_4(BaseDecodeHead):
+class LAPFormerHead_new_4(BaseDecodeHead):
     def __init__(self,
                  interpolate_mode='bilinear',
                  pool_scales=(1, 2, 3, 6),
@@ -1132,7 +1132,7 @@ class LAPFormerHead_PPM_RemConcat_new_4(BaseDecodeHead):
 
 #Model 5: Using Segformer head as neck for Lapformer
 @HEADS.register_module()
-class LAPFormerHead_PPM_RemConcat_new_5(BaseDecodeHead):
+class LAPFormerHead_new_5(BaseDecodeHead):
     def __init__(self,
                  interpolate_mode='bilinear',
                  pool_scales=(1, 2, 3, 6),
@@ -1280,7 +1280,7 @@ class LAPFormerHead_PPM_RemConcat_new_5(BaseDecodeHead):
 
 #Model 6: Remove concat 1/16 and 1/8 at segformer_head
 @HEADS.register_module()
-class LAPFormerHead_PPM_RemConcat_new_6(BaseDecodeHead):
+class LAPFormerHead_new_6(BaseDecodeHead):
     def __init__(self,
                  interpolate_mode='bilinear',
                  pool_scales=(1, 2, 3, 6),
@@ -1426,7 +1426,7 @@ class LAPFormerHead_PPM_RemConcat_new_6(BaseDecodeHead):
 
 #Model 7: extend kernel with every scale
 @HEADS.register_module()
-class LAPFormerHead_PPM_RemConcat_new_7(BaseDecodeHead):
+class LAPFormerHead_new_7(BaseDecodeHead):
     def __init__(self,
                  interpolate_mode='bilinear',
                  pool_scales=(1, 2, 3, 6),
@@ -1558,7 +1558,7 @@ class LAPFormerHead_PPM_RemConcat_new_7(BaseDecodeHead):
 
 #Model 8: Remove PPM 
 @HEADS.register_module()
-class LAPFormerHead_PPM_RemConcat_new_7_2(BaseDecodeHead):
+class LAPFormerHead_new_7_2(BaseDecodeHead):
     def __init__(self,
                  interpolate_mode='bilinear',
                  pool_scales=(1, 2, 3, 6),
@@ -1688,7 +1688,7 @@ class LAPFormerHead_PPM_RemConcat_new_7_2(BaseDecodeHead):
 
 #Model 9
 @HEADS.register_module()
-class LAPFormerHead_PPM_RemConcat_new_9(BaseDecodeHead):
+class LAPFormerHead_new_9(BaseDecodeHead):
     def __init__(self,
                  interpolate_mode='bilinear',
                  pool_scales=(1, 2, 3, 6),
@@ -1797,7 +1797,7 @@ class LAPFormerHead_PPM_RemConcat_new_9(BaseDecodeHead):
 
 #Model 10: using attention modual instead FRM normal
 @HEADS.register_module()
-class LAPFormerHead_PPM_RemConcat_new_10(BaseDecodeHead):
+class LAPFormerHead_new_10(BaseDecodeHead):
     def __init__(self,
                  interpolate_mode='bilinear',
                  **kwargs):
@@ -1892,9 +1892,9 @@ class LAPFormerHead_PPM_RemConcat_new_10(BaseDecodeHead):
 
         return out
 
-#Model 12: concat the same LAPFormerHead_PPM_RemConcat_new
+#Model 12: concat the same LAPFormerHead_new
 @HEADS.register_module()
-class LAPFormerHead_PPM_RemConcat_new_12(BaseDecodeHead):
+class LAPFormerHead_new_12(BaseDecodeHead):
     def __init__(self,
                  interpolate_mode='bilinear',
                  **kwargs):
@@ -1992,7 +1992,7 @@ class LAPFormerHead_PPM_RemConcat_new_12(BaseDecodeHead):
 
 #Model 13: using attention modual instead last FRM
 @HEADS.register_module()
-class LAPFormerHead_PPM_RemConcat_new_13(BaseDecodeHead):
+class LAPFormerHead_new_13(BaseDecodeHead):
     def __init__(self,
                  interpolate_mode='bilinear',
                  **kwargs):
@@ -2104,7 +2104,7 @@ class LAPFormerHead_PPM_RemConcat_new_13(BaseDecodeHead):
 
 #Model 16: Add scale của mai vào 3 FRM.
 @HEADS.register_module()
-class LAPFormerHead_PPM_RemConcat_new_16(BaseDecodeHead):
+class LAPFormerHead_new_16(BaseDecodeHead):
     def __init__(self,
                  interpolate_mode='bilinear',
                  scale_pos='residual',

@@ -1,5 +1,5 @@
 import glob
-
+import torch.nn as nn
 import torch
 import segmentation_models_pytorch as smp
 import albumentations as A
@@ -10,19 +10,20 @@ from .utils import select_device
 from .metrics import AverageMeter
 from .label_assignment import *
 
-name_model = "LAPFormerHead_PPM_RemConcat_new_13"
-name_wandb = "num3"
+name_model = "LAPFormerHead_new_13"
+name_wandb = "LAPFormerHead_new_13_aux_loss"
 # config
 # ===============================================================================
-use_wandb = False
+use_wandb = True
 wandb_key = "1424c55fa73c0d5684ab0210260f866920bb498d"
 wandb_project = "Polyp-Research"
 wandb_entity = "ssl-online"
-wandb_name = '1'
+wandb_name = '4'
 wandb_group = name_wandb
 # wandb_dir = "~/wandb"
 
 seed = 202
+list_seed = [2023, 2022, 202, 20, 22, 23, 2, 32, 30, 3]
 device = select_device("cuda:1" if torch.cuda.is_available() else 'cpu')
 # device = "cuda:1"
 num_workers = 4
@@ -37,7 +38,7 @@ save_path = "runs/test"
 
 image_size = 352
 
-bs = 16
+bs = 8
 bs_val = 2
 grad_accumulate_rate = 1
 
@@ -49,24 +50,28 @@ n_eps = 50
 save_ckpt_ep = 40
 val_ep = 40
 best = -1.
-
+alpha = 1
 init_lr = 1e-4
 
 focal_loss = smp.losses.FocalLoss(smp.losses.BINARY_MODE)
 dice_loss = smp.losses.DiceLoss(smp.losses.BINARY_MODE)
 bce_loss = smp.losses.SoftBCEWithLogitsLoss()
-loss_fns = [bce_loss, dice_loss]
+L2_loss = nn.MSELoss()
+loss_fns = [bce_loss, dice_loss, L2_loss]
 loss_weights = [0.8, 0.2]
 
-train_transform = A.Compose([
+train_transform_1 = A.Compose([
     A.HorizontalFlip(p=0.5),
     A.VerticalFlip(p=0.5),
+    A.ShiftScaleRotate(p=0.3, border_mode=cv2.BORDER_CONSTANT, shift_limit=0.15, scale_limit=0.11),
+])
+
+train_transform_2 = A.Compose([
     A.RandomGamma (gamma_limit=(50, 150), eps=None, always_apply=False, p=0.5),
     A.RandomBrightness(p=0.3),
     A.RGBShift(p=0.3, r_shift_limit=5, g_shift_limit=5, b_shift_limit=5),
     A.OneOf([A.Blur(), A.GaussianBlur(), A.GlassBlur(), A.MotionBlur(), A.GaussNoise(), A.Sharpen(), A.MedianBlur(), A.MultiplicativeNoise()]),
-    A.Cutout(p=0.3, max_h_size=25, max_w_size=25, fill_value=255),
-    A.ShiftScaleRotate(p=0.3, border_mode=cv2.BORDER_CONSTANT, shift_limit=0.15, scale_limit=0.11),
+    # A.Cutout(p=0.3, max_h_size=25, max_w_size=25, fill_value=255),
     A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
     ToTensorV2(),
 ])
@@ -85,7 +90,7 @@ label_vis_kwargs = {
 }
 
 # pretrained = "pretrained/mit_b1_mmseg.pth"
-pretrained = "/mnt/sdd/nguyen.van.quan/Researchs/Polyp/pretrained/mit_b1_mmseg.pth"
+pretrained = "pretrained/mit_b1_mmseg.pth"
 model_cfg = dict(
     type='SunSegmentor',
     backbone=dict(

@@ -48,7 +48,7 @@ def full_val(model):
         y_test = glob.glob('{}/masks/*'.format(data_path))
         y_test.sort()
 
-        test_dataset = ActiveDataset(X_test, y_test, transform=val_transform)
+        test_dataset = ActiveDataset(X_test, y_test, is_test = True, transform1=val_transform)
         test_loader = torch.utils.data.DataLoader(
             test_dataset,
             batch_size=1,
@@ -117,8 +117,10 @@ if __name__ == '__main__':
     train_dataset = ActiveDataset(
         train_images,
         train_masks,
+        is_test = False,
         trainsize=image_size,
-        transform=train_transform
+        transform1=train_transform_1,
+        transform2=train_transform_2
     )
     # val_dataset = ActiveDataset(
     #     test_images,
@@ -151,35 +153,42 @@ if __name__ == '__main__':
     with open(f"{save_path}/exp.log", 'a') as f:
         f.write("Start Training...\n")
 
-    set_seed_everything(seed)
+    # set_seed_everything(seed)
     for ep in range(1, n_eps + 1):
         dice_meter.reset()
         iou_meter.reset()
         train_loss_meter.reset()
         model.train()
-        if not os.path.exists(f"{seed}_{name_wandb}/ep_{ep}"):
-            os.makedirs(f"{seed}_{name_wandb}/ep_{ep}")
+        # if not os.path.exists(f"{seed}_{name_wandb}/ep_{ep}"):
+        #     os.makedirs(f"{seed}_{name_wandb}/ep_{ep}")
         for batch_id, sample in enumerate(tqdm(train_loader), start=1):
-            if ep in [1, 2, 3] and batch_id < 91:
-                for i in range(bs):
-                    img_demo = unorm(sample["image"][i]).permute(1, 2, 0).numpy() * 255
-                    img_demo = cv2.cvtColor(img_demo, cv2.COLOR_BGR2RGB)
-                    cv2.imwrite(f"{seed}_{name_wandb}/ep_{ep}/ep_1_image_id_{batch_id}_num_{i}.png", img_demo)
+            # if ep in [1, 2, 3] and batch_id < 91:
+            #     for i in range(bs):
+            #         img_demo = unorm(sample["image"][i]).permute(1, 2, 0).numpy() * 255
+            #         img_demo = cv2.cvtColor(img_demo, cv2.COLOR_BGR2RGB)
+            #         cv2.imwrite(f"{seed}_{name_wandb}/ep_{ep}/ep_1_image_id_{batch_id}_num_{i}.png", img_demo)
             if ep <= 1:
                 optimizer.param_groups[0]["lr"] = (ep * batch_id) / (1.0 * total_step) * init_lr
             else:
                 lr_scheduler.step()
 
-            n = sample["image"].shape[0]
-            x = sample["image"].to(device)
+            n = sample["image1"].shape[0]
+            x1, x2 = sample["image1"].to(device), sample["image2"].to(device)
             y = sample["mask"].to(device).to(torch.int64)
-            y_hats = model(x)
+            y_hats1 = model(x1)
+            y_hats2 = model(x2)
+            y_hats = y_hats1+y_hats2
             losses = []
             for y_hat in y_hats:
                 loss = loss_weights[0] * loss_fns[0](y_hat.squeeze(1), y.squeeze(1).float()) + \
                        loss_weights[1] * loss_fns[1](y_hat, y)
                 losses.append(loss)
             losses = sum(_loss for _loss in losses)
+            
+            aux_loss = loss_fns[2](y_hats1[0], y_hats2[0])
+            # print("aux: ", aux_loss.item())
+            # print("loss: ", losses.item())
+            losses = losses + alpha*aux_loss
             losses.backward()
 
             if batch_id % grad_accumulate_rate == 0:
