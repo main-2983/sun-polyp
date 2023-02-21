@@ -85,7 +85,6 @@ if __name__ == '__main__':
         with open(f"{save_path}/exp.log", 'w') as log_f:
             log_f.write(f"{config_data} \n")
 
-    set_seed_everything(seed)
     if use_wandb:
         assert wandb_group is not None, "Please specify wandb group"
         wandb.login(key=wandb_key)
