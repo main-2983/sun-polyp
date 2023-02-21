@@ -11,7 +11,7 @@ import numpy as np
 
 from mmseg.models.builder import build_segmentor
 
-from mcode import ActiveDataset, get_scores, LOGGER, set_seed_everything, set_logging
+from mcode import ActiveDataset, get_scores, LOGGER, set_logging
 from mcode.sam import SAM
 from mcode.config import *
 
