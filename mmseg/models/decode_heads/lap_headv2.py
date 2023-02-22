@@ -429,10 +429,10 @@ class LAPHead_v2_5(BaseDecodeHead):
             )
 
         self.se_module = SELayer(
-            channels=self.channels * num_inputs
+            channels=self.channels
         )
         self.fusion_conv = ConvModule(
-            in_channels=self.channels * num_inputs,
+            in_channels=self.channels,
             out_channels=self.channels,
             kernel_size=1,
             norm_cfg=self.norm_cfg)
@@ -524,10 +524,10 @@ class LAPHead_v2_6(BaseDecodeHead):
             )
 
         self.se_module = SELayer(
-            channels=self.channels * num_inputs
+            channels=self.channels
         )
         self.fusion_conv = ConvModule(
-            in_channels=self.channels * num_inputs,
+            in_channels=self.channels,
             out_channels=self.channels,
             kernel_size=1,
             norm_cfg=self.norm_cfg)
