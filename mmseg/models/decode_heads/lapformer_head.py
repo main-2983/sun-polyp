@@ -52,12 +52,10 @@ class LAPFormerHead(BaseDecodeHead):
             )
 
         self.se_module = SELayer(
-            # channels=self.channels * num_inputs
-            channels=self.channels * (num_inputs)
+            channels=self.channels * num_inputs
         )
         self.fusion_conv = ConvModule(
-            # in_channels=self.channels * num_inputs
-            in_channels=self.channels * (num_inputs),
+            in_channels=self.channels * num_inputs,
             out_channels=self.channels,
             kernel_size=1,
             norm_cfg=self.norm_cfg)
@@ -75,12 +73,12 @@ class LAPFormerHead(BaseDecodeHead):
                     size=inputs[0].shape[2:],
                     mode=self.interpolate_mode,
                     align_corners=self.align_corners))
+
         # slow concatenate
         _out = torch.empty(
             _inputs[0].shape
         )
         outs = [_inputs[-1]]
-        # outs = []
         for idx in range(len(_inputs) - 1, 0, -1):
             linear_prj = self.linear_projections[idx - 1]
             # cat first 2 from _inputs
@@ -106,6 +104,7 @@ class LAPFormerHead(BaseDecodeHead):
         out = outs[-1] + out
 
         out = self.cls_seg(out)
+
         return out
 
 #lapformer remove concat with high level features 1/32
@@ -600,7 +599,7 @@ class LAPFormerHead_removeconcat_PPM(BaseDecodeHead):
 
 #Model 1: [1/32, 1/4, 1/8, 1/16] => cat(x[i], x[i - 1])
 @HEADS.register_module()
-class LAPFormerHead_new(BaseDecodeHead):
+class LAPFormerHead_new_1(BaseDecodeHead):
     def __init__(self,
                  interpolate_mode='bilinear',
                  pool_scales=(1, 2, 3, 6),

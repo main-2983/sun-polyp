@@ -11,15 +11,15 @@ from .metrics import AverageMeter
 from .label_assignment import *
 
 
-name_model = "LAPFormerHead"
-name_wandb = "LAPFormerHead_sam"
+name_model = "LAPFormerHead_new_13"
+name_wandb = "LAPFormerHead_new_13_sam"
 # config
 # ===============================================================================
-use_wandb = False
+use_wandb = True
 wandb_key = "1424c55fa73c0d5684ab0210260f866920bb498d"
 wandb_project = "Polyp-Research"
 wandb_entity = "ssl-online"
-wandb_name = '0'
+wandb_name = '2'
 wandb_group = name_wandb
 wandb_dir = "~/wandb"
 
@@ -59,7 +59,7 @@ best = -1.
 
 # optimizer
 # ------------------------------------------------
-use_SAM = False
+use_SAM = True
 optimizer = torch.optim.AdamW
 init_lr = 1e-4
 grad_accumulate_rate = 1
