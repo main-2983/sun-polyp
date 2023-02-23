@@ -5,6 +5,7 @@ import segmentation_models_pytorch as smp
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
 import cv2
+from mmseg.models.builder import build_segmentor
 
 from .utils import select_device
 from .metrics import AverageMeter
@@ -16,17 +17,18 @@ from .label_assignment import *
 
 # wandb config
 # ------------------------------------------------
-use_wandb = False
-wandb_key = None
-wandb_project = "Seg-Uper"
+model_name = 'b1'
+use_wandb = True
+wandb_key = "d0ee13baa7af4379eff80e68b11cf976bbb8d673"
+wandb_project = "Polyp-Research"
 wandb_entity = "ssl-online"
-wandb_name = "TestGroup (2)"
-wandb_group = None
+wandb_name = "RLP (1)"
+wandb_group = f"RLP {model_name.upper()} scale"
 wandb_dir = "./wandb"
 
 # device config
 # ------------------------------------------------
-device = select_device("cuda:0" if torch.cuda.is_available() else 'cpu')
+device = "cuda:1" if torch.cuda.is_available() else 'cpu'
 num_workers = 4
 
 # data config
@@ -75,7 +77,7 @@ focal_loss = smp.losses.FocalLoss(smp.losses.BINARY_MODE)
 dice_loss = smp.losses.DiceLoss(smp.losses.BINARY_MODE)
 bce_loss = smp.losses.SoftBCEWithLogitsLoss()
 loss_fns = [bce_loss, dice_loss]
-loss_weights = [0.5, 0.5]
+loss_weights = [0.8, 0.2]
 
 # augmentation
 # ------------------------------------------------
@@ -109,35 +111,50 @@ label_vis_kwargs = {
 
 # model config
 # ------------------------------------------------
-pretrained = "/mnt/sdd/nguyen.van.quan/BKAI-kaggle/pretrained/mit_b1_mmseg.pth"
-model_cfg = dict(
-    type='SunSegmentor',
-    backbone=dict(
-        type='MixVisionTransformer',
-        in_channels=3,
-        embed_dims=64,
-        num_stages=4,
-        num_layers=[2, 2, 2, 2],
-        num_heads=[1, 2, 5, 8],
-        patch_sizes=[7, 3, 3, 3],
-        sr_ratios=[8, 4, 2, 1],
-        out_indices=(0, 1, 2, 3),
-        mlp_ratio=4,
-        qkv_bias=True,
-        drop_rate=0.0,
-        attn_drop_rate=0.0,
-        drop_path_rate=0.1,
-        pretrained=pretrained),
-    decode_head=dict(
-        type='LAPFormerHead',
-        in_channels=[64, 128, 320, 512],
-        in_index=[0, 1, 2, 3],
-        channels=256,
-        dropout_ratio=0.1,
-        num_classes=1,
-        norm_cfg=dict(type='BN', requires_grad=True),
-        align_corners=False,
-        loss_decode=dict(type='CrossEntropyLoss', use_sigmoid=True, loss_weight=1.0))
-)
+def get_model(arch):
+    num_layers = []
+    pretrained = f'pretrained/mit_{arch}_mmseg.pth'
+    if arch == 'b1':
+        num_layers = [2,2,2,2]
+    if arch == 'b2':
+        num_layers = [3, 4, 6, 3 ]
+    if arch == 'b3':
+        num_layers = [3, 4, 18, 3]
+    if arch == 'b4':
+        num_layers = [3, 8, 27, 3]
+    model = dict(
+        type='SunSegmentor',
+        backbone=dict(
+            type='MixVisionTransformer',
+            in_channels=3,
+            embed_dims=64,
+            num_stages=4,
+            num_layers=num_layers,
+            num_heads=[1, 2, 5, 8],
+            patch_sizes=[7, 3, 3, 3],
+            sr_ratios=[8, 4, 2, 1],
+            out_indices=(0, 1, 2, 3),
+            mlp_ratio=4,
+            qkv_bias=True,
+            drop_rate=0.0,
+            attn_drop_rate=0.0,
+            drop_path_rate=0.1,
+            pretrained=pretrained),
+        decode_head=dict(
+            type='DRPHead',
+            in_channels=[64, 128, 320, 512],
+            in_index=[0, 1, 2, 3],
+            channels=128,
+            dropout_ratio=0.1,
+            num_classes=1,
+            norm_cfg=dict(type='BN', requires_grad=True),
+            align_corners=False,
+            loss_decode=dict(type='CrossEntropyLoss', use_sigmoid=True, loss_weight=1.0)),
+        # model training and testing settings
+        train_cfg=dict(),
+        test_cfg=dict(mode='whole'))
+    model = build_segmentor(model)
+    model.init_weights()
+    return model
 
 # ===============================================================================

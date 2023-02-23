@@ -9,7 +9,6 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader
 import numpy as np
 
-from mmseg.models.builder import build_segmentor
 
 from mcode import ActiveDataset, get_scores, LOGGER, set_logging
 from mcode.sam import SAM
@@ -97,8 +96,7 @@ if __name__ == '__main__':
         )
 
     # model
-    model = build_segmentor(model_cfg)
-    model.init_weights()
+    model = get_model(model_name)
     model = model.to(device)
 
     # dataset
