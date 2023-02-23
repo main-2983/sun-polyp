@@ -1,3 +1,4 @@
+
 from ..builder import HEADS
 import torch
 from .decode_head import BaseDecodeHead
@@ -5,7 +6,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from torch.jit import script
 from icecream import ic 
-from .lib.psa import PSA_p, PSABlock
+from .lib.psa import PSA_p
 
 
 ######################################################################################################################
@@ -48,7 +49,7 @@ class depthwise_separable_conv(nn.Module):
 # pre-activation based conv block
 class Conv(nn.Module):
     def __init__(self, in_ch, out_ch, kSize, stride=1, 
-                    padding=0, dilation=1, bias=True, norm='BN', act='ELU', conv='default', num_groups=1):
+                    padding=0, dilation=1, bias=True, norm='BN', act='ReLU', conv='default', num_groups=1):
         super(Conv, self).__init__()
         if act == 'ELU':
             act = nn.ELU()
@@ -99,7 +100,28 @@ class Dilated_bottleNeck(nn.Module):
         out = self.reduction2(torch.cat([x,d3,d6,d9], dim=1))
         return out      # 256 x H/16 x W/16
 
+class PSABlock(nn.Module):
+    def __init__(self, planes,out_planes):
+        super(PSABlock, self).__init__()
+        self.deattn = PSA_p(planes, planes)
+        self.conv1 = Conv(planes, planes, kSize=3, padding=1, bias=False)
+        self.conv2 = Conv(planes, planes, kSize=3, padding=1, bias=False)
 
+
+    def forward(self, x, y=None):
+        residual = x
+        
+        if y is not None:
+            out = y * x
+            out = self.conv1(out)
+        else:
+            out = x
+        
+        out = self.deattn(out)
+
+        out = out + residual
+
+        return out   
 
 # DEEP RESIDUAL PYRAMID HEAD
 
@@ -113,7 +135,7 @@ class DRPHead(BaseDecodeHead):
         ############################################     Pyramid Level 5     ###################################################
         # decoder1 out : 1 x H/16 x W/16 (Level 5)
         self.ASPP = Dilated_bottleNeck(norm, act, self.in_channels[3])
-        self.psa_1 = PSA_p(self.in_channels[3]//2, self.in_channels[3]//2) 
+        self.psa_1 = PSABlock(self.in_channels[3]//2, self.in_channels[3]//2) 
         self.decoder1_temp = nn.Parameter(torch.ones(1, dtype=torch.float32), requires_grad=True)
         self.decoder1 = nn.Sequential(Conv(self.in_channels[3]//2, self.in_channels[3]//4, kSize, stride=1, padding=kSize//2, bias=False, 
                                             norm=norm, act=act),      
@@ -134,7 +156,7 @@ class DRPHead(BaseDecodeHead):
         # decoder2_up : (H/16,W/16)->(H/8,W/8)
         
         self.decoder2_up1 = upConvLayer(self.in_channels[3]//2, self.in_channels[3]//2, 2, norm, act)
-        self.decoder2_attn = PSA_p(self.in_channels[3]//2, self.in_channels[3]//2)
+        self.decoder2_attn = PSABlock(self.in_channels[3]//2, self.in_channels[3]//2)
         self.decoder2_temp = nn.Parameter(torch.ones(1, dtype=torch.float32), requires_grad=True)
         self.decoder2_reduc1 = Conv(self.in_channels[3]//2 + self.in_channels[2] + 3, self.in_channels[3]//2, kSize=kSize, stride=1, padding=kSize//2,bias=False, 
                                         norm=norm, act=act)
@@ -156,7 +178,7 @@ class DRPHead(BaseDecodeHead):
         # decoder3_up : (H/8,W/8)->(H/4,W/4)
         
         self.decoder3_up2 = upConvLayer(self.in_channels[3]//4, self.in_channels[3]//4, 2, norm, act, (self.in_channels[3]//4)//16)
-        self.decoder3_attn = PSA_p(self.in_channels[3]//4, self.in_channels[3]//4)
+        self.decoder3_attn = PSABlock(self.in_channels[3]//4, self.in_channels[3]//4)
         self.decoder3_temp = nn.Parameter(torch.ones(1, dtype=torch.float32), requires_grad=True)
         self.decoder3_reduc2 = Conv(self.in_channels[3]//4 + self.in_channels[1] + 3, self.in_channels[3]//4, kSize=kSize, stride=1, padding=kSize//2,bias=False, 
                                         norm=norm, act=act)
@@ -225,7 +247,7 @@ class DRPHead(BaseDecodeHead):
         # decoder 2 - Pyramid level 4
         dec2 = self.decoder2_up1(dense_feat)    # Upconv 1  
         dec2 = self.decoder2_reduc1(torch.cat([dec2,cat3,rgb_lv4],dim=1))    # X4
-        dec2 = self.decoder2_attn(torch.sigmoid(mask_lv5_up)+dec2)
+        dec2 = self.decoder2_attn(dec2, mask_lv5_up)
         dec2_up = self.decoder2_1(dec2)     #  block 2-1
         dec2 = self.decoder2_2(dec2_up)     #  block 2-2
         dec2 = self.decoder2_3(dec2)        #  block 2-3
@@ -237,7 +259,7 @@ class DRPHead(BaseDecodeHead):
         # decoder 2 - Pyramid level 3
         dec3 = self.decoder3_up2(dec2_up)     # Upconv 2
         dec3 = self.decoder3_reduc2(torch.cat([dec3,cat2, rgb_lv3],dim=1))    # X3
-        dec3 = self.decoder3_attn(torch.sigmoid(mask_lv4_up)+dec3)
+        dec3 = self.decoder3_attn(dec3, mask_lv4_up)
         dec3_up = self.decoder3_1(dec3)     #  block 3-1
         dec3 = self.decoder3_2(dec3_up)     #  block 3-2
         dec3 = self.decoder3_3(dec3)        #  block 3-3

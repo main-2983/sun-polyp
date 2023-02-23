@@ -61,7 +61,7 @@ best = -1.
 
 # optimizer
 # ------------------------------------------------
-use_SAM = False
+use_SAM = True
 optimizer = torch.optim.AdamW
 init_lr = 1e-4
 grad_accumulate_rate = 1
