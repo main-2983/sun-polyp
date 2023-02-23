@@ -760,7 +760,7 @@ class LAPHead_v2_8(BaseDecodeHead):
 # ExFuse (3 scale), drop concat all
 # drop skip
 @HEADS.register_module()
-class LAPHead_v2_5(BaseDecodeHead):
+class LAPHead_v2_9(BaseDecodeHead):
     def __init__(self,
                  interpolate_mode='bilinear',
                  **kwargs):
