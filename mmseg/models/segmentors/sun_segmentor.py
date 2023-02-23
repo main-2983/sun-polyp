@@ -70,24 +70,46 @@ class SunSegmentor(BaseModule):
             x = self.neck(x)
         return x
 
+    def _forward_auxiliary_head(self, img):
+        aux_logits = []
+        if isinstance(self.auxiliary_head, nn.ModuleList):
+            for idx, aux_head in enumerate(self.auxiliary_head):
+                aux_logit = aux_head(img)
+                aux_logits.append(aux_logit)
+        else:
+            aux_logit = self.auxiliary_head(img)
+            aux_logits.append(aux_logit)
+
+        return aux_logits
+
     def forward(self, img):
+        outs = []
         x = self.extract_feat(img)
         out = self.decode_head(x)
-
-        # out = resize(
-        #     input=out,
-        #     size=img.shape[2:],
-        #     mode='bilinear',
-        #     align_corners=self.align_corners)
-        
-        outs = []
-        for aux_out in out:
-            outs.append(
-                resize(
-                    input=aux_out,
+        if isinstance(out, list):
+            for _out in out:
+                outs.append(resize(
+                    input=_out,
                     size=img.shape[2:],
                     mode='bilinear',
                     align_corners=self.align_corners
+                ))
+            return outs if self.training else outs[0]
+        out = resize(
+            input=out,
+            size=img.shape[2:],
+            mode='bilinear',
+            align_corners=self.align_corners)
+        outs.append(out)
+        if self.with_auxiliary_head and self.training:
+            aux_outs = self._forward_auxiliary_head(x)
+            for aux_out in aux_outs:
+                outs.append(
+                    resize(
+                        input=aux_out,
+                        size=img.shape[2:],
+                        mode='bilinear',
+                        align_corners=self.align_corners
+                    )
                 )
-            )
-        return out
+        return outs if self.training else outs[0] # return list of tensors if training else tensor of main head

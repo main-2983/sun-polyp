@@ -1,14 +1,41 @@
-# Config model
-Config model in `mcode/model.py`  
-How to config:  
-+ `pretrained`: path to pretrain checkpoint
-+ Please change `pretrained=None` to `pretrained=pretrained` in backbone
-+ Config decode head `type` to head of your choice
+# Introduction
+This is an open-source research library for polyp segmentation. 
+Model configuration follows OpenMMLab style while other is implemented by us to conduct 
+experiments faster. 
 
-# Training
-## Config in training
-See `config` section in `main.py`
+It helps you have better understanding of your model by providing 
+some useful debug tools: 
+- CAM-based visualization
+- Per channel visualization
+- Model params and flops count
+
+This project belongs to Sun-Asterisk Inc.
+
+# Installation 
+## Install pytorch
+- Version: 1.10.1 (recommended)  
+`conda install pytorch==1.10.1 torchvision==0.11.2 torchaudio==0.10.1 cudatoolkit=11.3 -c pytorch -c conda-forge`
+## Install MMSegmentation
+- Install openmim: `pip install openmim`
+- Install mmcv: `mim install mmcv-full==1.6.0`
+- Install mmseg:
+```python
+cd sun-polyp
+pip install -v -e .
+```
+## Install dependencies
+- Install wandb (for logging): `pip install wandb`
+- Install pytorch-lightning: `pip install pytorch-lightning`
+- Install segmentation model pytorch: `pip install segmentation-models-pytorch`
+
+# Config
+Config everything in `mcode/config.py`  
 What to config?
++ Model:
+    + Follow `mmseg` config
+    + `pretrained`: path to ImageNet pretrained MiT backbone
+    + Please change `pretrained` in `backbone` to `pretrained=pretrained`
+    + Config model head to head of your choice
 + Wandb:
   + `use_wandb`: True, False if debug
   + `wandb_key`: Please use your wandb authorize key

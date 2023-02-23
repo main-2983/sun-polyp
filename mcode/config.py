@@ -5,57 +5,82 @@ import segmentation_models_pytorch as smp
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
 import cv2
-from mmseg.models import build_segmentor
-from mmcv.runner.optimizer import build_optimizer
+from mmseg.models.builder import build_segmentor
+
 from .utils import select_device
 from .metrics import AverageMeter
-import os
+from .label_assignment import *
+
+
 # config
 # ===============================================================================
+
+# wandb config
+# ------------------------------------------------
+model_name = 'b1'
 use_wandb = True
 wandb_key = "d0ee13baa7af4379eff80e68b11cf976bbb8d673"
 wandb_project = "Polyp-Research"
 wandb_entity = "ssl-online"
 wandb_name = "RLP (1)"
-wandb_group = "RLP B4"
+wandb_group = f"RLP {model_name.upper()} scale"
 wandb_dir = "./wandb"
 
-seed = 2022
-device = "cuda:0" if torch.cuda.is_available() else 'cpu'
-num_workers = 8
+# device config
+# ------------------------------------------------
+device = "cuda:1" if torch.cuda.is_available() else 'cpu'
+num_workers = 4
 
-train_images = glob.glob('/home/nguyen.van.quan/scatsimclr/TrainDataset/image/*')
-train_masks = [i.replace('image', 'mask') for i in train_images]
+# data config
+# ------------------------------------------------
+train_images = glob.glob('Dataset/TrainDataset/image/*')
+train_masks = glob.glob('Dataset/TrainDataset/mask/*')
 
-test_folder = "/home/nguyen.van.quan/scatsimclr/TestDataset"
+test_folder = "Dataset/TestDataset"
 test_images = glob.glob(f'{test_folder}/*/images/*')
 test_masks = glob.glob(f'{test_folder}/*/masks/*')
-
-save_path = "runs/test"
 
 image_size = 352
 
 bs = 16
-bs_val = 2
-grad_accumulate_rate = 1
 
+save_path = "runs/test"
+
+# running statistic
+# ------------------------------------------------
 train_loss_meter = AverageMeter()
 iou_meter = AverageMeter()
 dice_meter = AverageMeter()
 
+# epoch config
+# ------------------------------------------------
 n_eps = 50
 save_ckpt_ep = n_eps-5
 val_ep = n_eps
 best = -1.
 
+# optimizer
+# ------------------------------------------------
+use_SAM = False
+optimizer = torch.optim.AdamW
 init_lr = 1e-4
+grad_accumulate_rate = 1
+optimizer_kwargs = {
+    'lr': init_lr,
+    'betas': (0.9, 0.999),
+    'weight_decay': 0.01
+}
 
+# loss config
+# ------------------------------------------------
 focal_loss = smp.losses.FocalLoss(smp.losses.BINARY_MODE)
 dice_loss = smp.losses.DiceLoss(smp.losses.BINARY_MODE)
 bce_loss = smp.losses.SoftBCEWithLogitsLoss()
 loss_fns = [bce_loss, dice_loss]
 loss_weights = [0.8, 0.2]
 
+# augmentation
+# ------------------------------------------------
 train_transform = A.Compose([
     A.HorizontalFlip(p=0.5),
     A.VerticalFlip(p=0.5),
@@ -74,7 +99,19 @@ val_transform = A.Compose([
     ToTensorV2(),
 ])
 
-def segformer(arch):
+# deep supervision
+# ------------------------------------------------
+strategy = None # default to None
+strategy_kwargs = {
+
+}
+label_vis_kwargs = {
+    'type': None
+}
+
+# model config
+# ------------------------------------------------
+def get_model(arch):
     num_layers = []
     pretrained = f'pretrained/mit_{arch}_mmseg.pth'
     if arch == 'b1':

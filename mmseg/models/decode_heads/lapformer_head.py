@@ -5,11 +5,11 @@ from mmcv.cnn import ConvModule
 from mmseg.models.builder import HEADS
 from mmseg.models.decode_heads.decode_head import BaseDecodeHead
 from mmseg.ops import resize
-from mmseg.models.utils import LayerAttention
+from mmseg.models.utils import SELayer
 
 
 @HEADS.register_module()
-class MLPSLowCatLAHead(BaseDecodeHead):
+class LAPFormerHead(BaseDecodeHead):
     def __init__(self,
                  interpolate_mode='bilinear',
                  ops='cat',
@@ -23,17 +23,19 @@ class MLPSLowCatLAHead(BaseDecodeHead):
 
         assert num_inputs == len(self.in_index)
 
+        # reduce channel dims and local emphasis
         self.convs = nn.ModuleList()
         for i in range(num_inputs):
             self.convs.append(
                 ConvModule(
                     in_channels=self.in_channels[i],
                     out_channels=self.channels,
-                    kernel_size=1,
-                    stride=1,
+                    kernel_size=3,
+                    padding=1,
                     norm_cfg=self.norm_cfg,
                     act_cfg=self.act_cfg))
 
+        # feature fusion between adjacent levels
         self.linear_projections = nn.ModuleList()
         for i in range(num_inputs - 1):
             self.linear_projections.append(
@@ -46,17 +48,15 @@ class MLPSLowCatLAHead(BaseDecodeHead):
                     act_cfg=self.act_cfg
                 )
             )
-        self.layer_attn = LayerAttention(
-            in_channels=self.channels * num_inputs,
-            groups=num_inputs,
-            la_down_rate=16 # since it's been working with MLPSlowCatSE
+
+        self.se_module = SELayer(
+            channels=self.channels * num_inputs
         )
         self.fusion_conv = ConvModule(
             in_channels=self.channels * num_inputs,
             out_channels=self.channels,
             kernel_size=1,
-            norm_cfg=self.norm_cfg
-        )
+            norm_cfg=self.norm_cfg)
 
     def forward(self, inputs):
         # Receive 4 stage backbone feature map: 1/4, 1/8, 1/16, 1/32
@@ -94,9 +94,13 @@ class MLPSLowCatLAHead(BaseDecodeHead):
             _out = linear_prj(x)
             outs.append(_out)
 
-        outs = torch.cat(outs, dim=1)
-        outs = self.layer_attn(outs)
-        out = self.fusion_conv(outs)
+        out = torch.cat(outs, dim=1)
+        out = self.se_module(out)
+        out = self.fusion_conv(out)
+
+        # perform identity mapping
+        out = outs[-1] + out
+
         out = self.cls_seg(out)
 
         return out
