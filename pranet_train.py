@@ -15,6 +15,7 @@ from mmseg.models.losses import StructureLoss
 from mcode import ActiveDataset, get_scores, LOGGER, set_seed_everything, set_logging
 from mcode.utils import adjust_lr, clip_gradient
 from mcode.config import *
+from mcode.sam import SAM
 
 
 def full_val(model, epoch):
@@ -85,7 +86,6 @@ if __name__ == '__main__':
         with open(f"{save_path}/exp.log", 'w') as log_f:
             log_f.write(f"{config_data} \n")
 
-    set_seed_everything(seed)
     if use_wandb:
         assert wandb_group is not None, "Please specify wandb group"
         wandb.login(key=wandb_key)
@@ -129,7 +129,24 @@ if __name__ == '__main__':
     total_step = len(train_loader)
 
     # optimizer
-    optimizer = torch.optim.Adam(model.parameters(), 1e-4)
+    if use_SAM:
+        LOGGER.warning("You're using SAM for training, training will be slower than usual")
+        optimizer = SAM(
+            model.parameters(),
+            base_optimizer=optimizer,
+            **optimizer_kwargs
+        )
+        lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer.base_optimizer,
+                                                                  T_max=len(train_loader) * n_eps,
+                                                                  eta_min=init_lr / 1000)
+    else:
+        optimizer = optimizer(
+            model.parameters(),
+            **optimizer_kwargs
+        )
+        lr_scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer,
+                                                                  T_max=len(train_loader) * n_eps,
+                                                                  eta_min=init_lr / 1000)
 
     # label visualize
     label_vis_hook = LabelVis(model, save_path, strategy=strategy, **label_vis_kwargs)
