@@ -195,7 +195,8 @@ if __name__ == '__main__':
                     loss = loss_fn(y_hat, y)
                     loss = loss_weights[i] * loss
                     losses.append(loss)
-                losses = sum(_loss for _loss in losses)
+                losses = sum(l for l in losses)
+                losses.backward()
                 # --- optimizer closure (for SAM) ---
                 def closure():
                     # --- 2nd forward ---
@@ -203,14 +204,13 @@ if __name__ == '__main__':
                     # --- 2nd loss calc ---
                     _losses = []
                     for i, (_y_hat, _y) in enumerate(zip(_y_hats, targets)):
-                        _loss = loss_weights[0] * loss_fns[0](_y_hat.squeeze(1), _y.squeeze(1).float()) + \
-                                loss_weights[1] * loss_fns[1](_y_hat, _y)
+                        _loss = loss_fn(y_hat, y)
+                        _loss = loss_weights[i] * _loss
                         _losses.append(_loss)
                     _losses = sum(_l for _l in _losses)
                     _losses.backward()
                     return _losses
                 # --- backward ---
-                losses.backward()
                 clip_gradient(optimizer, 0.5)
                 optimizer.step(closure=closure if use_SAM else None)
                 optimizer.zero_grad()
