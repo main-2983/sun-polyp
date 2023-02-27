@@ -857,6 +857,7 @@ class LAPHead_v2_9(BaseDecodeHead):
 class LAPHead_v2_10(BaseDecodeHead):
     def __init__(self,
                  interpolate_mode='bilinear',
+                 scale_val=1.0,
                  **kwargs):
         super().__init__(
             input_transform='multiple_select',
@@ -901,8 +902,8 @@ class LAPHead_v2_10(BaseDecodeHead):
             kernel_size=1,
             norm_cfg=self.norm_cfg)
         self.scales = nn.ModuleList([
-            Scale(self.channels, 0.0),
-            Scale(self.channels, 0.0)
+            Scale(self.channels, scale_val),
+            Scale(self.channels, scale_val)
         ])
 
     def forward(self, inputs):
