@@ -66,6 +66,11 @@ def full_val(model, epoch):
                        'epoch': epoch})
         table.append([dataset_name, mean_iou, mean_dice])
     table.append(['Total', ious.avg, dices.avg])
+    if use_wandb:
+        wandb.log({f'Avg_iou': ious.avg,
+                   'epoch': epoch})
+        wandb.log({f'Avg_dice': dices.avg,
+                   'epoch': epoch})
 
     print(tabulate(table, headers=headers, tablefmt="fancy_grid"))
     with open(f"{save_path}/exp.log", 'a') as f:
