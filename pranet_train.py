@@ -204,7 +204,7 @@ if __name__ == '__main__':
                     # --- 2nd loss calc ---
                     _losses = []
                     for i, (_y_hat, _y) in enumerate(zip(_y_hats, targets)):
-                        _loss = loss_fn(y_hat, y)
+                        _loss = loss_fn(_y_hat, _y)
                         _loss = loss_weights[i] * _loss
                         _losses.append(_loss)
                     _losses = sum(_l for _l in _losses)
