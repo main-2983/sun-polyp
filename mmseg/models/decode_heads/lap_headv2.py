@@ -1022,9 +1022,7 @@ class LAPHead_v2_21(BaseDecodeHead):
                 ConvModule(
                     in_channels=self.in_channels[i],
                     out_channels=self.channels,
-                    kernel_size=1 if i < num_inputs - 1 else 3,
-                    stride=1,
-                    padding=0 if i < num_inputs - 1 else 1,
+                    kernel_size=1,
                     norm_cfg=self.norm_cfg,
                     act_cfg=self.act_cfg))
 
