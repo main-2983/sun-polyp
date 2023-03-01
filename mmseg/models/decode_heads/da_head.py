@@ -148,7 +148,8 @@ class DAM(nn.ModuleList):
         cam_feat_2 = self.cam_out_conv(cam_feat_1)
         # cam_out = self.cam_cls_seg(cam_feat)
 
-        feat_sum = cam_feat_2+pam_feat
+        # feat_sum = cam_feat_2+pam_feat
+        feat_sum = cam_feat_1+cam_feat_2
         pam_cam_out = self.convs(feat_sum)
 
         return pam_cam_out

@@ -11,8 +11,8 @@ from .metrics import AverageMeter
 from .label_assignment import *
 
 
-name_model = "LAPFormerHead_new_13"
-name_wandb = "LAPFormerHead_new_13_sam"
+name_model = "LAPFormerHead_new_1_rev_PPM"
+name_wandb = "LAPFormerHead_new_1_rev_PPM_sam"
 # config
 # ===============================================================================
 use_wandb = True
