@@ -88,9 +88,10 @@ class PyramidPoolingSelfAttention(nn.Module):
                  in_channels,
                  out_channels,
                  pool_scales=(1, 2, 3, 6),
-                 act='softmax'):
-        assert act in ['softmax', 'sigmoid'], \
-            f"Activation for {self.__class__} must be 'softmax' or 'sigmoid'"
+                 act_cfg=dict(
+                     type='Softmax',
+                     dim=-1
+                 )):
         super(PyramidPoolingSelfAttention, self).__init__()
         self.pools = nn.ModuleList()
         for pool_scale in pool_scales:
@@ -107,10 +108,7 @@ class PyramidPoolingSelfAttention(nn.Module):
             out_channels=out_channels,
             kernel_size=1
         )
-        if act == 'softmax':
-            self.act = nn.Softmax(dim=-1)
-        else:
-            self.act = nn.Sigmoid()
+        self.act = build_activation_layer(act_cfg)
 
     def forward_pp(self, x):
         pp_outs = []
@@ -137,5 +135,69 @@ class PyramidPoolingSelfAttention(nn.Module):
         out = attn@v # B, L, C
         out = out.permute(0, 2, 1).contiguous() # B, C, L
         out = out.reshape(B, self.out_channels, H, W)
+
+        return out
+
+
+class PyramidPoolingSelfAttentionv2(nn.Module):
+    def __init__(self,
+                 in_channels,
+                 out_channels,
+                 down_rate=4,
+                 pool_scales=(1, 2, 3, 6),
+                 act_cfg=dict(
+                     type='Softmax',
+                     dim=-1
+                 )):
+        super(PyramidPoolingSelfAttentionv2, self).__init__()
+        self.pools = nn.ModuleList()
+        for pool_scale in pool_scales:
+            self.pools.append(
+                nn.AdaptiveAvgPool2d(pool_scale)
+            )
+        self.out_channels = out_channels
+        self.inter_channels = in_channels // down_rate
+        self.kv = nn.Linear(
+            in_features=in_channels,
+            out_features=self.inter_channels * 2
+        )
+        self.q = nn.Conv2d(
+            in_channels=in_channels,
+            out_channels=self.inter_channels,
+            kernel_size=1
+        )
+        self.pwconv = nn.Conv2d(
+            in_channels=self.inter_channels,
+            out_channels=out_channels,
+            kernel_size=1
+        )
+        self.act = build_activation_layer(act_cfg)
+
+    def forward_pp(self, x):
+        pp_outs = []
+        for pool in self.pools:
+            out = pool(x) # B, C, H, W
+            out = out.reshape(*out.shape[:2], -1) # B, C, H*W
+            out = out.permute(0, 2, 1).contiguous() # B, H*W, C
+            pp_outs.append(out)
+        pp_outs = torch.cat(pp_outs, dim=1)
+        return pp_outs
+
+    def forward(self, x):
+        B, _, H, W = x.shape
+
+        pp_out = self.forward_pp(x)
+        kv = self.kv(pp_out) # B, 50, C*2
+        kv = kv.reshape(B, -1, 2, self.inter_channels) # B, 50, 2, C
+        kv = kv.permute(2, 0, 1, 3) # 2, B, 50, C
+        k, v = kv[0], kv[1] # B, 50, C each
+        q = self.q(x) # B, C, H, W
+        q = q.reshape(*q.shape[:2], -1).permute(0, 2, 1) # B, L, C
+        attn = q@k.transpose(1, 2) # B, L, 50
+        attn = self.act(attn)
+        out = attn@v # B, L, C
+        out = out.permute(0, 2, 1).contiguous() # B, C, L
+        out = out.reshape(B, self.inter_channels, H, W)
+        out = self.pwconv(out)
 
         return out
