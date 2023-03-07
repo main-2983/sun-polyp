@@ -104,7 +104,6 @@ class LAPHead_v2_1(BaseDecodeHead):
         out = torch.cat(outs, dim=1)
         out = self.se_module(out)
         out = self.fusion_conv(out)
-        return outs[-2]
         # perform identity mapping
         out = outs[-2] + out
 
@@ -1342,6 +1341,82 @@ class LAPHead_v2_25(BaseDecodeHead):
             outs.append(out)
 
         out = outs[-1]
+        out = self.cls_seg(out)
+
+        return out
+
+
+# ExFuse (3 scale) but remove cat all
+@HEADS.register_module()
+class LAPHead_v2_26(BaseDecodeHead):
+    def __init__(self,
+                 interpolate_mode='bilinear',
+                 **kwargs):
+        super().__init__(input_transform='multiple_select', **kwargs)
+
+        self.interpolate_mode = interpolate_mode
+        num_inputs = len(self.in_channels)
+
+        assert num_inputs == len(self.in_index)
+
+        self.convs = nn.ModuleList()
+        for i in range(num_inputs):
+            self.convs.append(
+                ConvModule(
+                    in_channels=self.in_channels[i],
+                    out_channels=self.channels,
+                    kernel_size=1,
+                    norm_cfg=self.norm_cfg,
+                    act_cfg=self.act_cfg))
+
+        self.linear_prj = nn.ModuleList()
+        for i in range(num_inputs):
+            self.linear_prj.append(
+                ConvModule(
+                    in_channels=self.channels * 2,
+                    out_channels=self.channels,
+                    kernel_size=1,
+                    norm_cfg=self.norm_cfg,
+                    act_cfg=self.act_cfg
+                )
+            )
+
+    def forward(self, inputs):
+        # inputs: 1/4, 1/8, 1/16, 1/32
+        inputs = self._transform_inputs(inputs)
+        for idx in range(len(inputs)):
+            x = inputs[idx]
+            conv = self.convs[idx]
+            inputs[idx] = resize(
+                input=conv(x),
+                size=inputs[0].shape[2:],
+                mode=self.interpolate_mode,
+                align_corners=self.align_corners
+            )
+
+        # new concatenation order:
+        # 1/16 + 1/8 -> 1/8 + 1/4 -> 1/4 + 1/32
+        # rearange inputs to 1/32, 1/4, 1/8, 1/16
+        inputs = inputs[-1:] + inputs[0:-1]
+        # 1/16, 1/16 + 1/8, 1/8 + 1/4, 1/4 + 1/32
+        outs = [inputs[-1]]
+        # idx: 3, 2, 1
+        for idx in range(len(inputs) - 1, 0, -1):
+            linear_prj = self.linear_projections[idx - 1]
+            # cat first 2 from inputs
+            if idx == len(inputs) - 1:
+                x1 = inputs[idx]
+                x2 = inputs[idx - 1]
+            # if not first 2 then cat from prev outs and inputs
+            else:
+                x1 = _out
+                x2 = inputs[idx - 1]
+            x = torch.cat([x1, x2], dim=1)
+            _out = linear_prj(x)
+            outs.append(_out)
+
+        out = outs[-1]
+
         out = self.cls_seg(out)
 
         return out
