@@ -1402,7 +1402,7 @@ class LAPHead_v2_26(BaseDecodeHead):
         outs = [inputs[-1]]
         # idx: 3, 2, 1
         for idx in range(len(inputs) - 1, 0, -1):
-            linear_prj = self.linear_projections[idx - 1]
+            linear_prj = self.linear_prj[idx - 1]
             # cat first 2 from inputs
             if idx == len(inputs) - 1:
                 x1 = inputs[idx]
