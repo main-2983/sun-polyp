@@ -3,7 +3,7 @@ from tqdm import tqdm
 from tabulate import tabulate
 import logging
 import os
-
+from torchinfo import summary
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
@@ -11,7 +11,7 @@ import numpy as np
 
 from mmseg.models.builder import build_segmentor
 
-from mcode import ActiveDataset, get_scores, LOGGER, set_seed_everything, set_logging
+from mcode import Dataset, get_scores, LOGGER, set_seed_everything, set_logging
 from mcode.config import *
 
 
@@ -30,19 +30,19 @@ def full_val(model):
         y_test = glob.glob('{}/masks/*'.format(data_path))
         y_test.sort()
 
-        test_dataset = ActiveDataset(X_test, y_test, transform=val_transform)
+        test_dataset = Dataset(X_test, y_test)
         test_loader = torch.utils.data.DataLoader(
             test_dataset,
             batch_size=1,
             shuffle=False,
             pin_memory=True,
-            drop_last=False)
+            drop_last=True)
 
         # print('Dataset_name:', dataset_name)
         gts = []
         prs = []
         for i, pack in enumerate(test_loader, start=1):
-            image, gt = pack["image"], pack["mask"]
+            image, gt = pack
             gt = gt[0][0]
             gt = np.asarray(gt, np.float32)
             image = image.to(device)
@@ -81,7 +81,8 @@ if __name__ == '__main__':
         with open(f"{save_path}/exp.log", 'w') as log_f:
             log_f.write(f"{config_data} \n")
 
-    set_seed_everything(seed)
+    # set_seed_everything(seed)
+
     if use_wandb:
         assert wandb_group is not None, "Please specify wandb group"
         wandb.login(key=wandb_key)
@@ -89,7 +90,7 @@ if __name__ == '__main__':
             project=wandb_project,
             entity=wandb_entity,
             name=wandb_name,
-            dir=wandb_dir,
+            # dir=wandb_dir,
             group=wandb_group
         )
 
@@ -97,28 +98,29 @@ if __name__ == '__main__':
     model = build_segmentor(model_cfg)
     model.init_weights()
     model = model.to(device)
-
+    summary(model, input_size=(1,3,352,352))
+    # from pthflops import count_ops
+    # inp = torch.rand(1,3,352,352).to(device)
+    # count_ops(model, inp)
     # dataset
-    train_dataset = ActiveDataset(
+    train_dataset = Dataset(
         train_images,
         train_masks,
-        trainsize=image_size,
-        transform=train_transform
     )
-    val_dataset = ActiveDataset(
-        test_images,
-        test_masks,
-        trainsize=image_size,
-        transform=val_transform
-    )
+    # val_dataset = ActiveDataset(
+    #     test_images,
+    #     test_masks,
+    #     trainsize=image_size,
+    #     transform=val_transform
+    # )
 
     set_logging("Polyp")
     LOGGER = logging.getLogger("Polyp")
     LOGGER.info(f"Train size: {len(train_dataset)}")
-    LOGGER.info(f"Valid size: {len(val_dataset)}")
+    # LOGGER.info(f"Valid size: {len(val_dataset)}")
 
     # dataloader
-    train_loader = DataLoader(train_dataset, batch_size=bs, num_workers=num_workers)
+    train_loader = DataLoader(train_dataset, batch_size=bs, num_workers=num_workers, shuffle=True, drop_last=True)
     total_step = len(train_loader)
 
     # optimizer
@@ -142,9 +144,9 @@ if __name__ == '__main__':
             else:
                 lr_scheduler.step()
 
-            n = sample["image"].shape[0]
-            x = sample["image"].to(device)
-            y = sample["mask"].to(device).to(torch.int64)
+            n = sample[0].shape[0]
+            x = sample[0].to(device)
+            y = sample[1].to(device).to(torch.int64)
             y_hats = model(x)
             losses = []
             for y_hat in y_hats:

@@ -8,7 +8,6 @@ from mmseg.core import add_prefix
 from mmseg.ops import resize
 from ..builder import SEGMENTORS
 
-
 @SEGMENTORS.register_module()
 class SunSegmentor(BaseModule):
     def __init__(self,

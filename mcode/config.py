@@ -8,7 +8,7 @@ import cv2
 
 from .utils import select_device
 from .metrics import AverageMeter
-from label_assignment import *
+from .label_assignment import *
 
 
 # config
@@ -25,10 +25,10 @@ seed = 2022
 device = select_device("cuda:0" if torch.cuda.is_available() else 'cpu')
 num_workers = 4
 
-train_images = glob.glob('../Dataset/polyp/TrainDataset/images/*')
-train_masks = glob.glob('../Dataset/polyp/TrainDataset/masks/*')
+train_images = glob.glob('Dataset/TrainDataset/image/*')
+train_masks = glob.glob('Dataset/TrainDataset/mask/*')
 
-test_folder = "../Dataset/polyp/TestDataset"
+test_folder = "Dataset/TestDataset"
 test_images = glob.glob(f'{test_folder}/*/images/*')
 test_masks = glob.glob(f'{test_folder}/*/masks/*')
 
@@ -36,7 +36,7 @@ save_path = "runs/test"
 
 image_size = 352
 
-bs = 16
+bs = 8
 bs_val = 2
 grad_accumulate_rate = 1
 
@@ -55,7 +55,7 @@ focal_loss = smp.losses.FocalLoss(smp.losses.BINARY_MODE)
 dice_loss = smp.losses.DiceLoss(smp.losses.BINARY_MODE)
 bce_loss = smp.losses.SoftBCEWithLogitsLoss()
 loss_fns = [bce_loss, dice_loss]
-loss_weights = [[0.5, 0.5]]
+loss_weights = [0.5, 0.5]
 
 train_transform = A.Compose([
     A.HorizontalFlip(p=0.5),
@@ -83,7 +83,7 @@ label_vis_kwargs = {
     'type': None
 }
 
-pretrained = "/mnt/sdd/nguyen.van.quan/BKAI-kaggle/pretrained/mit_b1_mmseg.pth"
+pretrained = "pretrained/mit_b1_mmseg.pth"
 model_cfg = dict(
     type='SunSegmentor',
     backbone=dict(
@@ -103,7 +103,7 @@ model_cfg = dict(
         drop_path_rate=0.1,
         pretrained=pretrained),
     decode_head=dict(
-        type='MLP_OSAHead_v5',
+        type='LAPFormerHead_new_17',
         in_channels=[64, 128, 320, 512],
         in_index=[0, 1, 2, 3],
         channels=256,
