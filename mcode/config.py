@@ -11,15 +11,17 @@ from .metrics import AverageMeter
 from .label_assignment import *
 
 
+name_model = "LAPFormerHead"
+name_wandb = "LAPFormerHead"
 # config
 # ===============================================================================
 use_wandb = False
-wandb_key = None
-wandb_project = "Seg-Uper"
+wandb_key = "1424c55fa73c0d5684ab0210260f866920bb498d"
+wandb_project = "Polyp-Research"
 wandb_entity = "ssl-online"
-wandb_name = "TestGroup (2)"
-wandb_group = None
-wandb_dir = "./wandb"
+wandb_name = '0'
+wandb_group = name_wandb
+# wandb_dir = "~/wandb"
 
 seed = 2022
 device = select_device("cuda:0" if torch.cuda.is_available() else 'cpu')
