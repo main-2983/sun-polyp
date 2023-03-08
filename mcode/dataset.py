@@ -1,47 +1,64 @@
 from torch.utils.data import Dataset
-import torch
-import cv2
+
 import numpy as np
 from PIL import Image, ImageFile
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
-class Dataset(torch.utils.data.Dataset):
+class ActiveDataset(Dataset):
+    """
+    dataloader for polyp segmentation tasks
+    """
 
-    def __init__(self, img_paths, mask_paths, aug=True, transform=None):
-        self.img_paths = img_paths
-        self.mask_paths = mask_paths
-        self.aug = aug
+    def __init__(self, image_paths=[], gt_paths=[], trainsize=352, transform=None):
+        self.trainsize = trainsize
+        assert len(image_paths) > 0, "Can't find any images in dataset"
+        assert len(gt_paths) > 0, "Can't find any mask in dataset"
+        self.images = image_paths
+        self.masks = gt_paths
+        self.size = len(self.images)
+        self.filter_files()
         self.transform = transform
 
-    def __len__(self):
-        return len(self.img_paths)
-
-    def __getitem__(self, idx):
-        img_path = self.img_paths[idx]
-        mask_path = self.mask_paths[idx]
-        # image = imread(img_path)
-        # mask = imread(mask_path)
-        image = cv2.imread(img_path)
-        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-        mask = cv2.imread(mask_path, 0)
-        # name = self.img_paths[idx].split('/')[-1]
+    def __getitem__(self, index):
+        image = self.rgb_loader(self.images[index])
+        mask = self.binary_loader(self.masks[index])
 
         if self.transform is not None:
-            augmented = self.transform(image=image, mask=mask)
-            image = augmented['image']
-            mask = augmented['mask']
-        else:
-            image = cv2.resize(image, (352, 352))
-            mask = cv2.resize(mask, (352, 352)) 
+            transformed = self.transform(image=image, mask=mask)
+            image = transformed["image"]
+            mask = transformed["mask"]
+            mask = mask / 255
 
-        image = image.astype('float32') / 255
-        image = image.transpose((2, 0, 1))
+        sample = dict(image=image, mask=mask.unsqueeze(0), image_path=self.images[index], mask_path=self.masks[index])
 
-        mask = mask[:,:,np.newaxis]
-        mask = mask.astype('float32') / 255
-        mask = mask.transpose((2, 0, 1))
+        return sample
 
-        return np.asarray(image), np.asarray(mask)
+    def filter_files(self):
+        assert len(self.images) == len(self.masks)
+        images = []
+        masks = []
+        for img_path, mask_path in zip(self.images, self.masks):
+            img = Image.open(img_path)
+            mask = Image.open(mask_path)
+            if img.size == mask.size:
+                images.append(img_path)
+                masks.append(mask_path)
+        self.images = images
+        self.masks = masks
+
+    def rgb_loader(self, path):
+        with open(path, 'rb') as f:
+            img = Image.open(f).resize((self.trainsize, self.trainsize), Image.BILINEAR)
+            return np.array(img.convert('RGB'))
+
+    def binary_loader(self, path):
+        with open(path, 'rb') as f:
+            img = Image.open(f).resize((self.trainsize, self.trainsize), Image.NEAREST)
+            img = np.array(img.convert('L'))
+            return img
+
+    def __len__(self):
+        return self.size
 
 
 class UnNormalize(object):
