@@ -40,7 +40,7 @@ test_masks = glob.glob(f'{test_folder}/*/masks/*')
 
 image_size = 352
 
-bs = 16
+bs_per_gpu = 16
 
 save_path = "runs/test"
 
