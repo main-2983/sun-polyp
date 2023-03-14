@@ -6,13 +6,14 @@ import os
 from torchinfo import summary
 import torch
 import torch.nn.functional as F
+from utils_polyp_pvt.utils import clip_gradient
 from torch.utils.data import DataLoader
 import numpy as np
 
 from mmseg.models.builder import build_segmentor
 from mcode.sam import SAM
 from mcode import ActiveDataset, get_scores, LOGGER, set_seed_everything, set_logging
-from mcode.config import *
+from mcode.config_new_pipeline import *
 
 def full_val(model):
     print("#" * 20)
@@ -154,63 +155,62 @@ if __name__ == '__main__':
         iou_meter.reset()
         train_loss_meter.reset()
         model.train()
-        # if not os.path.exists(f"{seed}_{name_wandb}/ep_{ep}"):
-        #     os.makedirs(f"{seed}_{name_wandb}/ep_{ep}")
         for batch_id, sample in enumerate(tqdm(train_loader), start=1):
-            # if ep in [1, 2, 3] and batch_id < 91:
-            #     for i in range(bs):
-            #         img_demo = unorm(sample["image"][i]).permute(1, 2, 0).numpy() * 255
-            #         img_demo = cv2.cvtColor(img_demo, cv2.COLOR_BGR2RGB)
-            #         cv2.imwrite(f"{seed}_{name_wandb}/ep_{ep}/ep_1_image_id_{batch_id}_num_{i}.png", img_demo)
             if ep <= 1:
                 optimizer.param_groups[0]["lr"] = (ep * batch_id) / (1.0 * total_step) * init_lr
             else:
                 lr_scheduler.step()
+            for rate in size_rates:
+                n = sample["image1"].shape[0]
+                x1, x2 = sample["image1"].to(device), sample["image2"].to(device)
+                y = sample["mask"].to(device)
+                trainsize = int(round(image_size*rate/32)*32)
 
-            n = sample["image1"].shape[0]
-            x1, x2 = sample["image1"].to(device), sample["image2"].to(device)
-            y = sample["mask"].to(device).to(torch.int64)
-            y_hats1 = model(x1)
-            y_hats2 = model(x2)
-            y_hats = y_hats1+y_hats2
-            losses = []
-            for y_hat in y_hats:
-                loss = loss_weights[0] * loss_fns[0](y_hat.squeeze(1), y.squeeze(1).float()) + \
-                       loss_weights[1] * loss_fns[1](y_hat, y)
-                losses.append(loss)
-            losses = sum(_loss for _loss in losses)
-            aux_loss = loss_fns[2](y_hats1[0].sigmoid(), y_hats2[0].sigmoid())
-            losses = losses + alpha*aux_loss
-            losses.backward()
+                x1 = F.upsample(x1, size=(trainsize, trainsize), mode='bilinear', align_corners=True)
+                x2 = F.upsample(x2, size=(trainsize, trainsize), mode='bilinear', align_corners=True)
+                y = F.upsample(y, size=(trainsize, trainsize), mode='bilinear', align_corners=True)
 
-            def closure():
-                _y_hats1 = model(x1)
-                _y_hats2 = model(x2)
-                _y_hats = _y_hats1 + _y_hats2
-                _losses = []
-                for _y_hat in _y_hats:
-                    _loss = loss_weights[0] * loss_fns[0](_y_hat.squeeze(1), y.squeeze(1).float()) + \
-                        loss_weights[1] * loss_fns[1](_y_hat, y)
-                    _losses.append(_loss)
-                _losses = sum(_l for _l in _losses)
+                y_hats1 = model(x1)
+                y_hats2 = model(x2)
+                y_hats = y_hats1+y_hats2
+                losses = []
+                for y_hat in y_hats:
+                    loss = structure_loss(y_hat, y)
+                    losses.append(loss)
+                losses = sum(_loss for _loss in losses)
+                aux_loss = L2_loss(y_hats1[0].sigmoid(), y_hats2[0].sigmoid())
+                losses = losses + alpha*aux_loss
+                losses.backward()
 
-                _aux_loss = loss_fns[2](_y_hats1[0].sigmoid(), _y_hats2[0].sigmoid())
-                _losses = _losses + alpha*_aux_loss
-                _losses.backward()
-                return _losses
+                def closure():
+                    _y_hats1 = model(x1)
+                    _y_hats2 = model(x2)
+                    _y_hats = _y_hats1 + _y_hats2
+                    _losses = []
+                    for _y_hat in _y_hats:
+                        _loss = structure_loss(_y_hat, y)
+                        _losses.append(_loss)
+                    _losses = sum(_l for _l in _losses)
 
-            if batch_id % grad_accumulate_rate == 0:
-                optimizer.step(closure=closure if use_SAM else None)
-                optimizer.zero_grad()
-            y_hat_mask = y_hats[0].sigmoid()
-            pred_mask = (y_hat_mask > 0.5).float()
+                    _aux_loss = L2_loss(_y_hats1[0].sigmoid(), _y_hats2[0].sigmoid())
+                    _losses = _losses + alpha*_aux_loss
+                    _losses.backward()
+                    return _losses
 
-            train_loss_meter.update(loss.item(), n)
-            tp, fp, fn, tn = smp.metrics.get_stats(pred_mask.long(), y.long(), mode="binary")
-            per_image_iou = smp.metrics.iou_score(tp, fp, fn, tn, reduction="micro-imagewise")
-            dataset_iou = smp.metrics.iou_score(tp, fp, fn, tn, reduction="micro")
-            iou_meter.update(per_image_iou, n)
-            dice_meter.update(dataset_iou, n)
+                if batch_id % grad_accumulate_rate == 0:
+                    clip_gradient(optimizer, 0.5)
+                    optimizer.step(closure=closure if use_SAM else None)
+                    optimizer.zero_grad()
+
+                y_hat_mask = y_hats[0].sigmoid()
+                pred_mask = (y_hat_mask > 0.5).float()
+
+                train_loss_meter.update(loss.item(), n)
+                tp, fp, fn, tn = smp.metrics.get_stats(pred_mask.long(), y.long(), mode="binary")
+                per_image_iou = smp.metrics.iou_score(tp, fp, fn, tn, reduction="micro-imagewise")
+                dataset_iou = smp.metrics.iou_score(tp, fp, fn, tn, reduction="micro")
+                iou_meter.update(per_image_iou, n)
+                dice_meter.update(dataset_iou, n)
         
 
         LOGGER.info("EP {} TRAIN: LOSS = {}, avg_dice = {}, avg_iou = {}".format(ep, train_loss_meter.avg, dice_meter.avg,

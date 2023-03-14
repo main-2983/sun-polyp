@@ -5,12 +5,13 @@ import segmentation_models_pytorch as smp
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
 import cv2
+import torch.nn.functional as F
 from .utils import select_device
 from .metrics import AverageMeter
 from .label_assignment import *
 
 name_model = "LAPFormerHead"
-name_wandb = "LAPFormerHead_new_15"
+name_wandb = "LAPFormerHead"
 # config
 # ===============================================================================
 use_wandb = False
@@ -35,6 +36,7 @@ test_masks = glob.glob(f'{test_folder}/*/masks/*')
 save_path = "runs/test"
 
 image_size = 352
+size_rates = [0.75, 1, 1.25]
 
 bs = 8
 bs_val = 2
@@ -66,6 +68,47 @@ bce_loss = smp.losses.SoftBCEWithLogitsLoss()
 L2_loss = nn.MSELoss()
 loss_fns = [bce_loss, dice_loss, L2_loss]
 loss_weights = [0.5, 0.5]
+
+class FocalLossV1(nn.Module):
+
+    def __init__(self,
+                 alpha=0.25,
+                 gamma=2,
+                 reduction='mean',):
+        super(FocalLossV1, self).__init__()
+        self.alpha = alpha
+        self.gamma = gamma
+        self.reduction = reduction
+        self.crit = nn.BCEWithLogitsLoss(reduction='none')
+
+    def forward(self, logits, label):
+        # compute loss
+        logits = logits.float() # use fp32 if logits is fp16
+        with torch.no_grad():
+            alpha = torch.empty_like(logits).fill_(1 - self.alpha)
+            alpha[label == 1] = self.alpha
+
+        probs = torch.sigmoid(logits)
+        pt = torch.where(label == 1, probs, 1 - probs)
+        ce_loss = self.crit(logits, label.float())
+        loss = (alpha * torch.pow(1 - pt, self.gamma) * ce_loss)
+        if self.reduction == 'mean':
+            loss = loss.mean()
+        if self.reduction == 'sum':
+            loss = loss.sum()
+        return loss
+
+def structure_loss(pred, mask):
+    weit = 1 + 5*torch.abs(F.avg_pool2d(mask, kernel_size=31, stride=1, padding=15) - mask)
+    wfocal = FocalLossV1()(pred, mask)
+    wfocal = (wfocal*weit).sum(dim=(2,3)) / weit.sum(dim=(2, 3))
+
+    pred = torch.sigmoid(pred)
+    inter = ((pred * mask)*weit).sum(dim=(2, 3))
+    union = ((pred + mask)*weit).sum(dim=(2, 3))
+    wiou = 1 - (inter + 1)/(union - inter+1)
+    return (wfocal + wiou).mean()
+
 
 train_transform_1 = A.Compose([
     A.HorizontalFlip(p=0.5),
@@ -104,7 +147,7 @@ label_vis_kwargs = {
 }
 
 # pretrained = "pretrained/mit_b1_mmseg.pth"
-pretrained = "/home/nguyen.van.quan/Polyp/pretrained/mit_b3_mmseg.pth"
+pretrained = "pretrained/mit_b1_mmseg.pth"
 model_cfg = dict(
     type='SunSegmentor',
     backbone=dict(
@@ -112,7 +155,7 @@ model_cfg = dict(
         in_channels=3,
         embed_dims=64,
         num_stages=4,
-        num_layers=[3, 4, 18, 3],
+        num_layers=[2, 2, 2, 2],
         num_heads=[1, 2, 5, 8],
         patch_sizes=[7, 3, 3, 3],
         sr_ratios=[8, 4, 2, 1],
@@ -122,7 +165,7 @@ model_cfg = dict(
         drop_rate=0.0,
         attn_drop_rate=0.0,
         drop_path_rate=0.1,
-        pretrained = pretrained),
+        pretrained=pretrained),
     decode_head=dict(
         type=name_model,
         # ops='cat',
