@@ -9,11 +9,52 @@ from utils_polyp_pvt.utils import clip_gradient
 import torch.nn.functional as F
 from torch.utils.data import DataLoader
 import numpy as np
-
+import torch.nn as nn
 from mmseg.models.builder import build_segmentor
 
 from mcode import ActiveDataset, get_scores, LOGGER, set_logging
 from mcode.config import *
+
+
+class FocalLossV1(nn.Module):
+
+    def __init__(self,
+                 alpha=0.25,
+                 gamma=2,
+                 reduction='mean',):
+        super(FocalLossV1, self).__init__()
+        self.alpha = alpha
+        self.gamma = gamma
+        self.reduction = reduction
+        self.crit = nn.BCEWithLogitsLoss(reduction='none')
+
+    def forward(self, logits, label):
+        # compute loss
+        logits = logits.float() # use fp32 if logits is fp16
+        with torch.no_grad():
+            alpha = torch.empty_like(logits).fill_(1 - self.alpha)
+            alpha[label == 1] = self.alpha
+
+        probs = torch.sigmoid(logits)
+        pt = torch.where(label == 1, probs, 1 - probs)
+        ce_loss = self.crit(logits, label.float())
+        loss = (alpha * torch.pow(1 - pt, self.gamma) * ce_loss)
+        if self.reduction == 'mean':
+            loss = loss.mean()
+        if self.reduction == 'sum':
+            loss = loss.sum()
+        return loss
+
+def structure_loss(pred, mask):
+    weit = 1 + 5*torch.abs(F.avg_pool2d(mask, kernel_size=31, stride=1, padding=15) - mask)
+    wfocal = FocalLossV1()(pred, mask)
+    wfocal = (wfocal*weit).sum(dim=(2,3)) / weit.sum(dim=(2, 3))
+
+    pred = torch.sigmoid(pred)
+    inter = ((pred * mask)*weit).sum(dim=(2, 3))
+    union = ((pred + mask)*weit).sum(dim=(2, 3))
+    wiou = 1 - (inter + 1)/(union - inter+1)
+    return (wfocal + wiou).mean()
 
 
 def full_val(model):
@@ -123,8 +164,6 @@ if __name__ == '__main__':
 
     # dataloader
     train_loader = DataLoader(train_dataset, batch_size=bs, num_workers=num_workers, shuffle=True, drop_last=True)
-    for i in train_dataset:
-        print(i['mask'].shape)
     total_step = len(train_loader)
 
     # optimizer
@@ -137,6 +176,7 @@ if __name__ == '__main__':
         f.write("Start Training...\n")
 
     for ep in range(1, n_eps + 1):
+        size_rates = [0.75, 1, 1.25]
         dice_meter.reset()
         iou_meter.reset()
         train_loss_meter.reset()
@@ -148,31 +188,37 @@ if __name__ == '__main__':
             else:
                 lr_scheduler.step()
 
-            n = sample['image'].shape[0]
-            x = sample['image'].to(device)
-            y = sample['mask'].to(device).to(torch.int64)
-            print(y.shape)
-            y_hats = model(x)
-            losses = []
-            for y_hat in y_hats:
-                loss = loss_weights[0] * loss_fns[0](y_hat.squeeze(1), y.squeeze(1).float()) + \
-                       loss_weights[1] * loss_fns[1](y_hat, y)
-                losses.append(loss)
-            losses = sum(_loss for _loss in losses)
-            losses.backward()
-            # clip_gradient(optimizer, 0.5)
-            if batch_id % grad_accumulate_rate == 0:
-                optimizer.step()
-                optimizer.zero_grad()
-            y_hat_mask = y_hats[0].sigmoid()
-            pred_mask = (y_hat_mask > 0.5).float()
+            for rate in size_rates:
+                n = sample['image'].shape[0]
+                image = sample['image'].to(device)
+                gts = sample['mask'].to(device)
 
-            train_loss_meter.update(loss.item(), n)
-            tp, fp, fn, tn = smp.metrics.get_stats(pred_mask.long(), y.long(), mode="binary")
-            per_image_iou = smp.metrics.iou_score(tp, fp, fn, tn, reduction="micro-imagewise")
-            dataset_iou = smp.metrics.iou_score(tp, fp, fn, tn, reduction="micro")
-            iou_meter.update(per_image_iou, n)
-            dice_meter.update(dataset_iou, n)
+                trainsize = int(round(image_size*rate/32)*32)
+                x = F.upsample(image, size=(trainsize, trainsize), mode='bilinear', align_corners=True)
+                y = F.upsample(gts, size=(trainsize, trainsize), mode='bilinear', align_corners=True)
+
+                y_hats = model(x)
+                losses = []
+                for y_hat in y_hats:
+                    loss = structure_loss(y_hat, y)
+                    losses.append(loss)
+                losses = sum(_loss for _loss in losses)
+                losses.backward()
+                clip_gradient(optimizer, 0.5)
+                if batch_id % grad_accumulate_rate == 0:
+                    optimizer.step()
+                    optimizer.zero_grad()
+
+                if rate == 1:   
+                    y_hat_mask = y_hats[0].sigmoid()
+                    pred_mask = (y_hat_mask > 0.5).float()
+
+                    train_loss_meter.update(loss.item(), n)
+                    tp, fp, fn, tn = smp.metrics.get_stats(pred_mask.long(), y.long(), mode="binary")
+                    per_image_iou = smp.metrics.iou_score(tp, fp, fn, tn, reduction="micro-imagewise")
+                    dataset_iou = smp.metrics.iou_score(tp, fp, fn, tn, reduction="micro")
+                    iou_meter.update(per_image_iou, n)
+                    dice_meter.update(dataset_iou, n)
 
         LOGGER.info("EP {} TRAIN: LOSS = {}, avg_dice = {}, avg_iou = {}".format(ep, train_loss_meter.avg, dice_meter.avg,
                                                                            iou_meter.avg))

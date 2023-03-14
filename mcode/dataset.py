@@ -22,6 +22,7 @@ class ActiveDataset(Dataset):
     def __getitem__(self, index):
         image = self.rgb_loader(self.images[index])
         mask = self.binary_loader(self.masks[index])
+        # print(image.shape)
 
         if self.transform is not None:
             transformed = self.transform(image=image, mask=mask)
