@@ -209,7 +209,7 @@ if __name__ == '__main__':
                     optimizer.step()
                     optimizer.zero_grad()
 
-                if rate == 1:   
+                if rate == 1:
                     y_hat_mask = y_hats[0].sigmoid()
                     pred_mask = (y_hat_mask > 0.5).float()
 
