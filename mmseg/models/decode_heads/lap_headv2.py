@@ -1370,7 +1370,7 @@ class LAPHead_v2_26(BaseDecodeHead):
                     act_cfg=self.act_cfg))
 
         self.linear_prj = nn.ModuleList()
-        for i in range(num_inputs):
+        for i in range(num_inputs - 1):
             self.linear_prj.append(
                 ConvModule(
                     in_channels=self.channels * 2,
@@ -1565,6 +1565,80 @@ class LAPHead_v2_28(BaseDecodeHead):
             out = linear_prj(x)
             outs.append(out)
 
+        out = outs[-1]
+        out = self.cls_seg(out)
+
+        return out
+
+
+# ExFuse, remove cat all
+# dynamic cat, add
+@HEADS.register_module()
+class LAPHead_v2_29(BaseDecodeHead):
+    def __init__(self,
+                 interpolate_mode='bilinear',
+                 ops=['cat', 'add', 'add', 'add'],
+                 **kwargs):
+        super().__init__(input_transform='multiple_select', **kwargs)
+
+        assert all(op in ['add', 'cat'] for op in ops), "ops can only be 'add' or 'cat'"
+        self.ops = ops
+        self.interpolate_mode = interpolate_mode
+        num_inputs = len(self.in_channels)
+
+        assert num_inputs == len(self.in_index)
+
+        self.convs = nn.ModuleList()
+        for i in range(num_inputs):
+            self.convs.append(
+                ConvModule(
+                    in_channels=self.in_channels[i],
+                    out_channels=self.channels,
+                    kernel_size=1,
+                    norm_cfg=self.norm_cfg,
+                    act_cfg=self.act_cfg))
+
+        self.linear_prj = nn.ModuleList()
+        for op in (ops):
+            in_chn = self.channels if op == 'add' else self.channels * 2
+            self.linear_prj.append(
+                ConvModule(
+                    in_channels=in_chn,
+                    out_channels=self.channels,
+                    kernel_size=1,
+                    norm_cfg=self.norm_cfg,
+                    act_cfg=self.act_cfg
+                )
+            )
+
+    def forward(self, inputs):
+        # Receive 4 stage backbone feature map: 1/4, 1/8, 1/16, 1/32
+        inputs = self._transform_inputs(inputs)
+        for idx in range(len(inputs)):
+            x = inputs[idx]
+            conv = self.convs[idx]
+            inputs[idx] = resize(
+                input=conv(x),
+                size=inputs[0].shape[2:],
+                mode=self.interpolate_mode,
+                align_corners=self.align_corners)
+
+        outs = []
+        for idx in range(len(inputs) -1, -1, -1):
+            linear_prj = self.linear_prj[idx]
+            op = self.ops[idx]
+            if idx == len(inputs) - 1:
+                x1 = inputs[idx]
+                x2 = inputs[idx - 1]
+            else:
+                x1 = out
+                x2 = inputs[idx - 1]
+            if op == 'add':
+                x = x1 + x2
+            else:
+                x = torch.cat([x1, x2], dim=1)
+            out = linear_prj(x)
+            outs.append(out)
         out = outs[-1]
         out = self.cls_seg(out)
 
