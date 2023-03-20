@@ -49,6 +49,14 @@ def get_scores(gts, prs):
     return (mean_iou, mean_dice, mean_precision, mean_recall)
 
 
+def weighted_score(scores:list,
+                   weights:list):
+    assert len(scores) == len(weights)
+    score = list(scores[i] * weights[i] for i in range(len(scores)))
+    score = sum(score)
+    return score
+
+
 class AverageMeter(object):
     def __init__(self):
         self.reset()
