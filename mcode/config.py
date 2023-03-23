@@ -38,7 +38,7 @@ save_path = "runs/test"
 
 image_size = 352
 
-bs = 1
+bs = 8
 bs_val = 2
 grad_accumulate_rate = 1
 

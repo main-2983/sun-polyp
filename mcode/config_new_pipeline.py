@@ -10,15 +10,15 @@ from .utils import select_device
 from .metrics import AverageMeter
 from .label_assignment import *
 
-name_model = "LAPFormerHead"
-name_wandb = "LAPFormerHead"
+name_model = "LAPFormerHead_new_16"
+name_wandb = "LAPFormerHead_new_16"
 # config
 # ===============================================================================
-use_wandb = False
+use_wandb = True
 wandb_key = "1424c55fa73c0d5684ab0210260f866920bb498d"
 wandb_project = "Polyp-Research"
 wandb_entity = "ssl-online"
-wandb_name = '0'
+wandb_name = '2'
 wandb_group = name_wandb
 # wandb_dir = "~/wandb"
 
@@ -39,7 +39,6 @@ image_size = 352
 size_rates = [0.75, 1, 1.25]
 
 bs = 8
-bs_val = 2
 grad_accumulate_rate = 1
 
 train_loss_meter = AverageMeter()
@@ -52,6 +51,7 @@ val_ep = 40
 best = -1.
 alpha = 1
 
+using_contrastive_loss = False
 use_SAM = True
 optimizer = torch.optim.AdamW
 init_lr = 1e-4
@@ -62,12 +62,12 @@ optimizer_kwargs = {
     'weight_decay': 0.01
 }
 
-focal_loss = smp.losses.FocalLoss(smp.losses.BINARY_MODE)
-dice_loss = smp.losses.DiceLoss(smp.losses.BINARY_MODE)
-bce_loss = smp.losses.SoftBCEWithLogitsLoss()
+# focal_loss = smp.losses.FocalLoss(smp.losses.BINARY_MODE)
+# dice_loss = smp.losses.DiceLoss(smp.losses.BINARY_MODE)
+# bce_loss = smp.losses.SoftBCEWithLogitsLoss()
 L2_loss = nn.MSELoss()
-loss_fns = [bce_loss, dice_loss, L2_loss]
-loss_weights = [0.5, 0.5]
+# loss_fns = [bce_loss, dice_loss, L2_loss]
+# loss_weights = [0.5, 0.5]
 
 class FocalLossV1(nn.Module):
 
@@ -121,7 +121,7 @@ train_transform_2 = A.Compose([
     A.RandomBrightness(p=0.3),
     A.RGBShift(p=0.3, r_shift_limit=5, g_shift_limit=5, b_shift_limit=5),
     A.OneOf([A.Blur(), A.GaussianBlur(), A.GlassBlur(), A.MotionBlur(), A.GaussNoise(), A.Sharpen(), A.MedianBlur(), A.MultiplicativeNoise()]),
-    # A.Cutout(p=0.3, max_h_size=25, max_w_size=25, fill_value=255),
+    A.Cutout(p=0.3, max_h_size=25, max_w_size=25, fill_value=255),
     A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
     ToTensorV2(),
 ])

@@ -1,5 +1,11 @@
 import numpy as np
 
+def weighted_score(scores:list,
+                   weights:list):
+    assert len(scores) == len(weights)
+    score = list(scores[i] * weights[i] for i in range(len(scores)))
+    score = sum(score)
+    return score
 
 epsilon = 1e-7
 def recall_np(y_true, y_pred):
@@ -26,6 +32,8 @@ def iou_np(y_true, y_pred):
     intersection = np.sum(np.round(np.clip(y_true * y_pred, 0, 1)))
     union = np.sum(y_true) + np.sum(y_pred) - intersection
     return intersection / (union + epsilon)
+
+
 
 
 def get_scores(gts, prs):

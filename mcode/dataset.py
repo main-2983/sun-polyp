@@ -12,7 +12,7 @@ class ActiveDataset(Dataset):
     dataloader for polyp segmentation tasks
     """
 
-    def __init__(self, image_paths=[], gt_paths=[], is_test = False, trainsize=352, transform1=None, transform2=None, transform3=None):
+    def __init__(self, image_paths=[], gt_paths=[], is_test = False, using_contrastive_loss = False, trainsize=352, transform1=None, transform2=None, transform3=None):
         self.trainsize = trainsize
         assert len(image_paths) > 0, "Can't find any images in dataset"
         assert len(gt_paths) > 0, "Can't find any mask in dataset"
@@ -21,6 +21,7 @@ class ActiveDataset(Dataset):
         self.size = len(self.images)
         self.filter_files()
         self.is_test = is_test
+        self.using_contrastive_loss = using_contrastive_loss
         self.transform1 = transform1
         self.transform2 = transform2
         self.transform3 = transform3
@@ -29,25 +30,34 @@ class ActiveDataset(Dataset):
         image = self.rgb_loader(self.images[index])
         mask = self.binary_loader(self.masks[index])
 
-        if self.transform1 is not None:
-            transformed = self.transform1(image=image, mask=mask)
-            image = transformed["image"]
-            mask = transformed["mask"]
-            mask = mask / 255
-        if self.is_test:
-            return dict(image=image, mask=mask.unsqueeze(0), image_path=self.images[index], mask_path=self.masks[index])  
+        if self.using_contrastive_loss:
+            if self.transform1 is not None:
+                transformed = self.transform1(image=image, mask=mask)
+                image = transformed["image"]
+                mask = transformed["mask"]
+                mask = mask / 255
+            if self.is_test:
+                return dict(image=image, mask=mask.unsqueeze(0), image_path=self.images[index], mask_path=self.masks[index])  
 
-        if self.transform2 is not None:
-            pseudo_mask = np.zeros((self.trainsize, self.trainsize))
-            transformed = self.transform3(image=image, mask=pseudo_mask)
-            image1 = transformed["image"]
-            transformed = self.transform2(image=image, mask=mask)
-            image2 = transformed["image"]
-            mask = transformed["mask"]
+            if self.transform2 is not None:
+                pseudo_mask = np.zeros((self.trainsize, self.trainsize))
+                transformed = self.transform3(image=image, mask=pseudo_mask)
+                image1 = transformed["image"]
+                transformed = self.transform2(image=image, mask=mask)
+                image2 = transformed["image"]
+                mask = transformed["mask"]
 
-        sample = dict(image1=image1, image2=image2, mask=mask.unsqueeze(0), image_path=self.images[index], mask_path=self.masks[index])
+            sample = dict(image1=image1, image2=image2, mask=mask.unsqueeze(0), image_path=self.images[index], mask_path=self.masks[index])
 
-        return sample
+            return sample
+        else:
+            if self.transform3 is not None:
+                transformed = self.transform3(image=image, mask=mask)
+                image = transformed["image"]
+                mask = transformed["mask"]
+                mask = mask / 255
+            
+            return dict(image=image, mask=mask.unsqueeze(0), image_path=self.images[index], mask_path=self.masks[index])
 
     def filter_files(self):
         assert len(self.images) == len(self.masks)

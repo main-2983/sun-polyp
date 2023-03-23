@@ -12,16 +12,18 @@ import numpy as np
 
 from mmseg.models.builder import build_segmentor
 from mcode.sam import SAM
-from mcode import ActiveDataset, get_scores, LOGGER, set_seed_everything, set_logging
+from mcode import ActiveDataset, get_scores, LOGGER, set_logging, weighted_score
 from mcode.config_new_pipeline import *
 
-def full_val(model):
+def full_val(model, epoch):
     print("#" * 20)
     model.eval()
     dataset_names = ['Kvasir', 'CVC-ClinicDB', 'CVC-ColonDB', 'CVC-300', 'ETIS-LaribPolypDB']
     table = []
     headers = ['Dataset', 'IoU', 'Dice']
     ious, dices = AverageMeter(), AverageMeter()
+    all_dices = []
+    metric_weights = [0.1253, 0.0777, 0.4762, 0.0752, 0.2456]
 
     for dataset_name in dataset_names:
         data_path = f'{test_folder}/{dataset_name}'
@@ -30,7 +32,7 @@ def full_val(model):
         y_test = glob.glob('{}/masks/*'.format(data_path))
         y_test.sort()
 
-        test_dataset = ActiveDataset(X_test, y_test, is_test = True, transform1=val_transform)
+        test_dataset = ActiveDataset(X_test, y_test, transform3=val_transform)
         test_loader = torch.utils.data.DataLoader(
             test_dataset,
             batch_size=1,
@@ -56,11 +58,26 @@ def full_val(model):
         mean_iou, mean_dice, _, _ = get_scores(gts, prs)
         ious.update(mean_iou)
         dices.update(mean_dice)
+        all_dices.append(mean_dice)
         if use_wandb:
-            wandb.log({f'{dataset_name}_dice': mean_dice})
-            wandb.log({f'{dataset_name}_iou': mean_iou})
+            wandb.log({f'{dataset_name}_dice': mean_dice,
+                       'epoch': epoch})
+            wandb.log({f'{dataset_name}_iou': mean_iou,
+                       'epoch': epoch})
         table.append([dataset_name, mean_iou, mean_dice])
+    wdice = weighted_score(
+        scores=all_dices,
+        weights=metric_weights
+    )
     table.append(['Total', ious.avg, dices.avg])
+    table.append(['wDice', 0, wdice])
+    if use_wandb:
+        wandb.log({f'Avg_iou': ious.avg,
+                   'epoch': epoch})
+        wandb.log({f'Avg_dice': dices.avg,
+                   'epoch': epoch})
+        wandb.log({f'wDice': wdice,
+                  'epoch': epoch})
 
     print(tabulate(table, headers=headers, tablefmt="fancy_grid"))
     with open(f"{save_path}/exp.log", 'a') as f:
@@ -101,8 +118,7 @@ if __name__ == '__main__':
         train_masks,
         is_test = False,
         trainsize=image_size,
-        transform1=train_transform_1,
-        transform2=train_transform_2,
+        using_contrastive_loss=using_contrastive_loss,
         transform3=train_transform3
     )
     # val_dataset = ActiveDataset(
@@ -161,41 +177,70 @@ if __name__ == '__main__':
             else:
                 lr_scheduler.step()
             for rate in size_rates:
-                n = sample["image1"].shape[0]
-                x1, x2 = sample["image1"].to(device), sample["image2"].to(device)
-                y = sample["mask"].to(device)
-                trainsize = int(round(image_size*rate/32)*32)
+                if using_contrastive_loss:
+                    n = sample["image1"].shape[0]
+                    x1, x2 = sample["image1"].to(device), sample["image2"].to(device)
+                    y = sample["mask"].to(device)
 
-                x1 = F.upsample(x1, size=(trainsize, trainsize), mode='bilinear', align_corners=True)
-                x2 = F.upsample(x2, size=(trainsize, trainsize), mode='bilinear', align_corners=True)
-                y = F.upsample(y, size=(trainsize, trainsize), mode='bilinear', align_corners=True)
+                    trainsize = int(round(image_size*rate/32)*32)
 
-                y_hats1 = model(x1)
-                y_hats2 = model(x2)
-                y_hats = y_hats1+y_hats2
-                losses = []
-                for y_hat in y_hats:
-                    loss = structure_loss(y_hat, y)
-                    losses.append(loss)
-                losses = sum(_loss for _loss in losses)
-                aux_loss = L2_loss(y_hats1[0].sigmoid(), y_hats2[0].sigmoid())
-                losses = losses + alpha*aux_loss
-                losses.backward()
+                    x1 = F.upsample(x1, size=(trainsize, trainsize), mode='bilinear', align_corners=True)
+                    x2 = F.upsample(x2, size=(trainsize, trainsize), mode='bilinear', align_corners=True)
+                    y = F.upsample(y, size=(trainsize, trainsize), mode='bilinear', align_corners=True)
 
-                def closure():
-                    _y_hats1 = model(x1)
-                    _y_hats2 = model(x2)
-                    _y_hats = _y_hats1 + _y_hats2
-                    _losses = []
-                    for _y_hat in _y_hats:
-                        _loss = structure_loss(_y_hat, y)
-                        _losses.append(_loss)
-                    _losses = sum(_l for _l in _losses)
+                    y_hats1 = model(x1)
+                    y_hats2 = model(x2)
+                    y_hats = y_hats1+y_hats2
+                    losses = []
+                    for y_hat in y_hats:
+                        loss = structure_loss(y_hat, y)
+                        losses.append(loss)
+                    losses = sum(_loss for _loss in losses)
+                    aux_loss = L2_loss(y_hats1[0].sigmoid(), y_hats2[0].sigmoid())
+                    losses = losses + alpha*aux_loss
+                    losses.backward()
 
-                    _aux_loss = L2_loss(_y_hats1[0].sigmoid(), _y_hats2[0].sigmoid())
-                    _losses = _losses + alpha*_aux_loss
-                    _losses.backward()
-                    return _losses
+                    def closure():
+                        _y_hats1 = model(x1)
+                        _y_hats2 = model(x2)
+                        _y_hats = _y_hats1 + _y_hats2
+                        _losses = []
+                        for _y_hat in _y_hats:
+                            _loss = structure_loss(_y_hat, y)
+                            _losses.append(_loss)
+                        _losses = sum(_l for _l in _losses)
+
+                        _aux_loss = L2_loss(_y_hats1[0].sigmoid(), _y_hats2[0].sigmoid())
+                        _losses = _losses + alpha*_aux_loss
+                        _losses.backward()
+                        return _losses
+                else:
+                    n = sample["image"].shape[0]
+                    x = sample["image"].to(device)
+                    y = sample["mask"].to(device)
+
+                    trainsize = int(round(image_size*rate/32)*32)
+
+                    x = F.upsample(x, size=(trainsize, trainsize), mode='bilinear', align_corners=True)
+                    y = F.upsample(y, size=(trainsize, trainsize), mode='bilinear', align_corners=True)
+
+                    y_hats = model(x)
+                    losses = []
+                    for y_hat in y_hats:
+                        loss = structure_loss(y_hat, y)
+                        losses.append(loss)
+                    losses = sum(_loss for _loss in losses)
+                    losses.backward()
+
+                    def closure():
+                        _y_hats = model(x)
+                        _losses = []
+                        for _y_hat in _y_hats:
+                            _loss = structure_loss(_y_hat, y)
+                            _losses.append(_loss)
+                        _losses = sum(_l for _l in _losses)
+                        _losses.backward()
+                        return _losses
 
                 if batch_id % grad_accumulate_rate == 0:
                     clip_gradient(optimizer, 0.5)
@@ -230,7 +275,7 @@ if __name__ == '__main__':
         if ep >= val_ep:
             # val model
             with torch.no_grad():
-                iou, dice = full_val(model)
+                iou, dice = full_val(model, ep)
                 if (dice > best):
                     torch.save(model.state_dict(), f"{save_path}/checkpoints/best.pth")
                     best = dice
