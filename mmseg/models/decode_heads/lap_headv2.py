@@ -1950,7 +1950,6 @@ class LAPHead_v2_33(BaseDecodeHead):
 class LAPHead_v2_34(BaseDecodeHead):
     def __init__(self,
                  interpolate_mode='bilinear',
-                 scale_init_vals=[1.0, 1.0, 1.0, 1.0],
                  dw_kernel_size=3,
                  **kwargs):
         super().__init__(input_transform='multiple_select', **kwargs)
@@ -1983,7 +1982,6 @@ class LAPHead_v2_34(BaseDecodeHead):
                 )
 
         self.linear_prj = nn.ModuleList()
-        self.scales = nn.ModuleList()
         for i in range(num_inputs):
             self.linear_prj.append(
                 ConvModule(
@@ -1992,12 +1990,6 @@ class LAPHead_v2_34(BaseDecodeHead):
                     kernel_size=1,
                     norm_cfg=self.norm_cfg,
                     act_cfg=self.act_cfg
-                )
-            )
-            self.scales.append(
-                Scale(
-                    channels=self.channels,
-                    init_val=scale_init_vals[i]
                 )
             )
         self.se_module = SELayer(
@@ -2020,14 +2012,13 @@ class LAPHead_v2_34(BaseDecodeHead):
         outs = []
         for idx in range(len(inputs) -1, -1, -1):
             linear_prj = self.linear_prj[idx]
-            scale = self.scales[idx]
             if idx == len(inputs) - 1:
                 x1 = inputs[idx]
                 x2 = inputs[idx - 1]
             else:
                 x1 = out
                 x2 = inputs[idx - 1]
-            x = scale(x1) + x2
+            x = x1 + x2
             out = linear_prj(x)
             outs.append(out)
 
