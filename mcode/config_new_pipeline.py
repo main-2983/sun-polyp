@@ -11,14 +11,14 @@ from .metrics import AverageMeter
 from .label_assignment import *
 
 name_model = "LAPFormerHead_new_16"
-name_wandb = "LAPFormerHead_new_16"
+name_wandb = "LAPFormerHead_new_16_aug"
 # config
 # ===============================================================================
 use_wandb = True
 wandb_key = "1424c55fa73c0d5684ab0210260f866920bb498d"
 wandb_project = "Polyp-Research"
 wandb_entity = "ssl-online"
-wandb_name = '2'
+wandb_name = '0'
 wandb_group = name_wandb
 # wandb_dir = "~/wandb"
 
@@ -132,6 +132,19 @@ train_transform3 = A.Compose([
 ])
 
 val_transform = A.Compose([
+    A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+    ToTensorV2(),
+])
+
+train_transform4 = A.Compose([
+    A.HorizontalFlip(p=0.5),
+    A.VerticalFlip(p=0.5),
+    A.ShiftScaleRotate(p=0.3, border_mode=cv2.BORDER_CONSTANT, shift_limit=0.15, scale_limit=0.11),
+    A.RandomGamma (gamma_limit=(50, 150), eps=None, always_apply=False, p=0.5),
+    A.RandomBrightness(p=0.3),
+    A.RGBShift(p=0.3, r_shift_limit=5, g_shift_limit=5, b_shift_limit=5),
+    A.OneOf([A.Blur(), A.GaussianBlur(), A.GlassBlur(), A.MotionBlur(), A.GaussNoise(), A.Sharpen(), A.MedianBlur(), A.MultiplicativeNoise()]),
+    A.Cutout(p=0.3, max_h_size=25, max_w_size=25, fill_value=255),
     A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
     ToTensorV2(),
 ])

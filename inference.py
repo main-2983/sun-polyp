@@ -140,43 +140,43 @@ if __name__ == '__main__':
     model.to(device)
     model.eval()
     full_val(model, 50)
-    # dataset
-    # test_dataset = ActiveDataset(test_images, test_masks, transform3=transform)
-    # test_loader = DataLoader(
-    #     test_dataset,
-    #     batch_size=1,
-    #     shuffle=False,
-    #     pin_memory=True,
-    #     drop_last=False)
-    # with torch.no_grad():
-    #     for i, sample in tqdm(enumerate(test_loader)):
-    #         image, gt, path = sample["image"], sample["mask"], sample["image_path"]
-    #         _, dir = path[0].split(test_folder)
-    #         _, dir, _, name = dir.split('/')
-    #         gt = gt[0][0]
-    #         gt = np.asarray(gt, np.float32)
-    #         image = image.to(device)
+    dataset
+    test_dataset = ActiveDataset(test_images, test_masks, transform3=transform)
+    test_loader = DataLoader(
+        test_dataset,
+        batch_size=1,
+        shuffle=False,
+        pin_memory=True,
+        drop_last=False)
+    with torch.no_grad():
+        for i, sample in tqdm(enumerate(test_loader)):
+            image, gt, path = sample["image"], sample["mask"], sample["image_path"]
+            _, dir = path[0].split(test_folder)
+            _, dir, _, name = dir.split('/')
+            gt = gt[0][0]
+            gt = np.asarray(gt, np.float32)
+            image = image.to(device)
 
-    #         res = model(image)[0]
-    #         res = res.sigmoid().data.cpu().numpy().squeeze()
-    #         res = (res - res.min()) / (res.max() - res.min() + 1e-8)
-    #         pred = res.round()
+            res = model(image)[0]
+            res = res.sigmoid().data.cpu().numpy().squeeze()
+            res = (res - res.min()) / (res.max() - res.min() + 1e-8)
+            pred = res.round()
 
-    #         # visualize
-    #         img = unorm(image.clone().squeeze(0))
-    #         img = img.cpu().numpy().transpose(1, 2, 0)
-    #         stacked = cv2.addWeighted(img, 0.5, np.repeat(np.expand_dims(pred, axis=-1), repeats=3, axis=-1), 0.5, 0)
+            # visualize
+            img = unorm(image.clone().squeeze(0))
+            img = img.cpu().numpy().transpose(1, 2, 0)
+            stacked = cv2.addWeighted(img, 0.5, np.repeat(np.expand_dims(pred, axis=-1), repeats=3, axis=-1), 0.5, 0)
 
-    #         fig = plt.figure(figsize=(30, 10))
-    #         plt.subplot(1, 3, 1)
-    #         plt.imshow(stacked)
-    #         plt.subplot(1, 3, 2)
-    #         plt.imshow(img)
-    #         plt.subplot(1, 3, 3)
-    #         plt.imshow(gt)
-    #         if save_img:
-    #             if not os.path.exists(save_path):
-    #                 os.makedirs(save_path, exist_ok=True)
-    #             plt.savefig(f"{save_path}/P_{dir}_{name}.jpg")
-    #         if show_img:
-    #             plt.show()
+            fig = plt.figure(figsize=(30, 10))
+            plt.subplot(1, 3, 1)
+            plt.imshow(stacked)
+            plt.subplot(1, 3, 2)
+            plt.imshow(img)
+            plt.subplot(1, 3, 3)
+            plt.imshow(gt)
+            if save_img:
+                if not os.path.exists(save_path):
+                    os.makedirs(save_path, exist_ok=True)
+                plt.savefig(f"{save_path}/P_{dir}_{name}.jpg")
+            if show_img:
+                plt.show()
