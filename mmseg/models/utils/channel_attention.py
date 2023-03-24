@@ -10,6 +10,9 @@ class ECAModule(nn.Module):
     """
     ECA Module from ECA-Net
     References: https://arxiv.org/pdf/1910.03151.pdf
+    Args:
+        kernel_size: window for mixing channel
+    kernel_size should be int(abs((log(C, 2) + 1 / 2)) + 1
     """
     def __init__(self,
                  kernel_size=3):

@@ -2111,3 +2111,82 @@ class LAPHead_v2_35(BaseDecodeHead):
         out = self.cls_seg(out)
 
         return out
+
+
+# Scale (2) as ECA module
+@HEADS.register_module()
+class LAPHead_v2_36(BaseDecodeHead):
+    def __init__(self,
+                 interpolate_mode='bilinear',
+                 scale_kernel=5,
+                 **kwargs):
+        super().__init__(input_transform='multiple_select', **kwargs)
+
+        self.interpolate_mode = interpolate_mode
+        num_inputs = len(self.in_channels)
+
+        assert num_inputs == len(self.in_index)
+
+        self.convs = nn.ModuleList()
+        for i in range(num_inputs):
+            self.convs.append(
+                ConvModule(
+                    in_channels=self.in_channels[i],
+                    out_channels=self.channels,
+                    kernel_size=1,
+                    norm_cfg=self.norm_cfg,
+                    act_cfg=self.act_cfg))
+
+        self.linear_prj = nn.ModuleList()
+        self.scales = nn.ModuleList()
+        for i in range(num_inputs):
+            self.linear_prj.append(
+                ConvModule(
+                    in_channels=self.channels,
+                    out_channels=self.channels,
+                    kernel_size=1,
+                    norm_cfg=self.norm_cfg,
+                    act_cfg=self.act_cfg
+                )
+            )
+            self.scales.append(
+                ECAModule(
+                    kernel_size=scale_kernel
+                )
+            )
+        self.se_module = SELayer(
+            channels=self.channels,
+            ratio=8
+        )
+
+    def forward(self, inputs):
+        # Receive 4 stage backbone feature map: 1/4, 1/8, 1/16, 1/32
+        inputs = self._transform_inputs(inputs)
+        for idx in range(len(inputs)):
+            x = inputs[idx]
+            conv = self.convs[idx]
+            inputs[idx] = resize(
+                input=conv(x),
+                size=inputs[0].shape[2:],
+                mode=self.interpolate_mode,
+                align_corners=self.align_corners)
+
+        outs = []
+        for idx in range(len(inputs) -1, -1, -1):
+            linear_prj = self.linear_prj[idx]
+            scale = self.scales[idx]
+            if idx == len(inputs) - 1:
+                x1 = inputs[idx]
+                x2 = inputs[idx - 1]
+            else:
+                x1 = out
+                x2 = inputs[idx - 1]
+            x = scale(x1) + x2
+            out = linear_prj(x)
+            outs.append(out)
+
+        out = outs[-1]
+        out = self.se_module(out)
+        out = self.cls_seg(out)
+
+        return out
