@@ -119,7 +119,7 @@ if __name__ == '__main__':
         is_test = False,
         trainsize=image_size,
         using_contrastive_loss=using_contrastive_loss,
-        transform3=train_transform4
+        transform3=train_transform3
     )
     # val_dataset = ActiveDataset(
     #     test_images,
