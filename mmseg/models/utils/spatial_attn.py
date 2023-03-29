@@ -2,10 +2,11 @@ import torch
 import torch.nn as nn
 
 from mmcv.cnn import ConvModule
+from mmcv.cnn.utils import normal_init, constant_init
 
 
 __all__ = [
-    'AvgSpatialAttn'
+    'AvgSpatialAttn', 'DisentangledSpatialSA'
 ]
 
 
@@ -48,3 +49,70 @@ class AvgSpatialAttn(nn.Module):
         weight = self.conv(weight)
         weight = weight.expand(-1, self.channels, -1, -1)
         return weight * x
+
+
+class DisentangledSpatialSA(nn.Module):
+    """
+    This is a re-implementation of pair-wise term in Disentangled Non-Local Network
+    References: https://arxiv.org/pdf/2006.06668.pdf
+    """
+    def __init__(self,
+                 channels,
+                 reduction=2,
+                 use_scale=True,
+                 temperature=0.05):
+        super(DisentangledSpatialSA, self).__init__()
+        self.channels = channels
+        self.inter_channels = max(channels // reduction, 1)
+        self.use_scale = use_scale
+        self.temperature = temperature
+        self.qkv = nn.Conv2d(self.channels,
+                             self.inter_channels * 3,
+                             kernel_size=1)
+        self.conv_out = nn.Conv2d(self.inter_channels,
+                                  self.channels,
+                                  kernel_size=1)
+        self.init_weights()
+
+    def init_weights(self, std=0.01):
+        normal_init(self.qkv, std=std)
+        constant_init(self.conv_out, 0)
+
+    def forward(self, x):
+        b, _, h, w = x.shape
+
+        # q, k, v: B, C, H*W
+        qkv = self.qkv(x) # B, C*3, H, W
+        qkv = qkv.reshape(b, 3, self.inter_channels, h, w) # B, 3, C, H, W
+        qkv = qkv.permute(1, 0, 2, 3, 4) # 3, B, C, H, W
+        qkv = qkv.view(3, b, self.inter_channels, -1)
+        q, k, v = qkv[0], qkv[1], qkv[2]
+
+        # k, v: B, H*W, C
+        k = k.permute(0, 2, 1)
+        v = v.permute(0, 2, 1)
+
+        # subtract mean
+        k -= k.mean(dim=-2, keepdim=True)
+        q -= q.mean(dim=-1, keepdim=True)
+
+        # weight
+        pairwise_weight = torch.matmul(k, q) # B, HxW, HxW
+        if self.use_scale:
+            pairwise_weight /= torch.tensor(
+                self.inter_channels,
+                dtype=torch.float,
+                device=pairwise_weight.device) ** torch.tensor(
+                0.5, device=pairwise_weight.device
+            )
+        pairwise_weight /= torch.tensor(
+            self.temperature, device=pairwise_weight.device
+        )
+        pairwise_weight = pairwise_weight.softmax(dim=-1)
+
+        y = torch.matmul(pairwise_weight, v) # B, HxW, C
+        y = y.permute(0, 2, 1).contiguous().reshape(b, self.inter_channels,
+                                                    h, w) # B, C, H, W
+
+        out = x + self.conv_out(y)
+        return out
