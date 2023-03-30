@@ -6,7 +6,8 @@ from mmcv.cnn.utils import normal_init, constant_init
 
 
 __all__ = [
-    'AvgSpatialAttn', 'DisentangledSpatialSA'
+    'AvgSpatialAttn', 'DisentangledSpatialSA',
+    'AttentionGate'
 ]
 
 
@@ -116,3 +117,54 @@ class DisentangledSpatialSA(nn.Module):
 
         out = x + self.conv_out(y)
         return out
+
+
+class AttentionGate(nn.Module):
+    def __init__(self,
+                 in_channels: list,
+                 out_channels,
+                 return_weight=False):
+        super(AttentionGate, self).__init__()
+        assert out_channels == in_channels[1]
+        self.return_weight = return_weight
+        self.w_g = ConvModule(
+            in_channels=in_channels[0],
+            out_channels=out_channels,
+            kernel_size=1,
+            act_cfg=None,
+            norm_cfg=dict(
+                type='BN',
+                requires_grad=True
+            )
+        )
+        self.w_x = ConvModule(
+            in_channels=in_channels[1],
+            out_channels=out_channels,
+            kernel_size=1,
+            act_cfg=None,
+            norm_cfg=dict(
+                type='BN',
+                requires_grad=True
+            )
+        )
+        self.out_conv = ConvModule(
+            in_channels=out_channels,
+            out_channels=out_channels,
+            kernel_size=1,
+            act_cfg=dict(
+                type='Sigmoid'
+            ),
+            norm_cfg=dict(
+                type='BN',
+                requires_grad=True
+            )
+        )
+        self.relu = nn.ReLU(inplace=True)
+
+    def forward(self, g, x):
+        g = self.w_g(g)
+        weight = self.w_x(x)
+        weight = self.relu(g + weight)
+        weight = self.out_conv(weight)
+
+        return weight if self.return_weight else weight * x
