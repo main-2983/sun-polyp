@@ -123,7 +123,14 @@ class AttentionGate(nn.Module):
     def __init__(self,
                  in_channels: list,
                  out_channels,
-                 return_weight=False):
+                 return_weight=False,
+                 act_cfg=dict(
+                     type='Sigmoid'
+                 ),
+                 norm_cfg=dict(
+                     type='BN',
+                     requires_grad=True
+                 )):
         super(AttentionGate, self).__init__()
         assert out_channels == in_channels[1]
         self.return_weight = return_weight
@@ -151,13 +158,8 @@ class AttentionGate(nn.Module):
             in_channels=out_channels,
             out_channels=out_channels,
             kernel_size=1,
-            act_cfg=dict(
-                type='Sigmoid'
-            ),
-            norm_cfg=dict(
-                type='BN',
-                requires_grad=True
-            )
+            act_cfg=act_cfg,
+            norm_cfg=norm_cfg
         )
         self.relu = nn.ReLU(inplace=True)
 
