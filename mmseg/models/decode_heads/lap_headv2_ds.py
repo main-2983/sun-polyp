@@ -87,3 +87,50 @@ class LAPHead_v2_34_DS(LAPHead_v2_34):
             aux_out = self.aux_head(outs[-2])
 
         return [out, aux_out] if self.training else out
+
+
+@HEADS.register_module()
+class LAPHead_v2_34_DS_v2(LAPHead_v2_34):
+    def __init__(self,
+                 aux_channels=256,
+                 num_aux_conv=1,
+                 **kwargs):
+        super(LAPHead_v2_34_DS_v2, self).__init__(**kwargs)
+        self.aux_head = AuxHead(in_channels=self.channels,
+                                channels=aux_channels,
+                                num_convs=num_aux_conv)
+
+    def forward(self, inputs):
+        # Receive 4 stage backbone feature map: 1/4, 1/8, 1/16, 1/32
+        inputs = self._transform_inputs(inputs)
+        for idx in range(len(inputs)):
+            x = inputs[idx]
+            conv = self.convs[idx]
+            inputs[idx] = resize(
+                input=conv(x),
+                size=inputs[0].shape[2:],
+                mode=self.interpolate_mode,
+                align_corners=self.align_corners)
+
+        outs = []
+        for idx in range(len(inputs) -1, -1, -1):
+            linear_prj = self.linear_prj[idx]
+            if idx == len(inputs) - 1:
+                x1 = inputs[idx]
+                x2 = inputs[idx - 1]
+            else:
+                x1 = out
+                x2 = inputs[idx - 1]
+            x = x1 + x2
+            out = linear_prj(x)
+            outs.append(out)
+
+        out = outs[-1]
+
+        if self.training:
+            aux_out = self.aux_head(out)
+
+        out = self.se_module(out)
+        out = self.cls_seg(out)
+
+        return [out, aux_out] if self.training else out
