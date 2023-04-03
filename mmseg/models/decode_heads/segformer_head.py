@@ -130,9 +130,6 @@ class SegformerHead(BaseDecodeHead):
         for idx in range(len(inputs)):
             x = inputs[idx]
             conv = self.convs[idx]
-            '''if idx == 3:
-                test_tensor = conv(x)
-                return test_tensor'''
             outs.append(
                 resize(
                     input=conv(x),
