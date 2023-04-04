@@ -26,20 +26,21 @@ class LabelVis:
 
     def before_train(self, dataset):
         """ This function gathers images and labels for visualization """
-        os.makedirs(self.save_path, exist_ok=True)
-        self.images = []
-        self.labels = []
-        if self.img_names is not None:
-            self.img_idxs = []
-            for i in range(len(dataset)):
-                sample = dataset.images[i]
-                img_name = os.path.basename(sample)
-                if img_name in self.img_names:
-                    self.img_idxs.append(i)
-        for idx in self.img_idxs:
-            sample = dataset[idx]
-            self.images.append(sample['image'])
-            self.labels.append(sample['mask'])
+        if self.type is not None:
+            os.makedirs(self.save_path, exist_ok=True)
+            self.images = []
+            self.labels = []
+            if self.img_names is not None:
+                self.img_idxs = []
+                for i in range(len(dataset)):
+                    sample = dataset.images[i]
+                    img_name = os.path.basename(sample)
+                    if img_name in self.img_names:
+                        self.img_idxs.append(i)
+            for idx in self.img_idxs:
+                sample = dataset[idx]
+                self.images.append(sample['image'])
+                self.labels.append(sample['mask'])
 
     def after_train_iter(self, iter, epoch, strategy_kwargs):
         if self.type == 'iter' and (iter - 1) % self.rate == 0:
@@ -122,10 +123,30 @@ class LabelVis:
             pass
 
 
-def label_assignment(preds: List[torch.Tensor], target: torch.Tensor=None,
+def label_assignment(preds: List[torch.Tensor], target: torch.Tensor,
                      assign_func=None, **kwargs):
     if assign_func is None:
         return [target] * len(preds)
     else:
         targets = assign_func(preds, target, **kwargs)
+        return targets
+
+
+@torch.no_grad()
+def guided_DS(preds: List[torch.Tensor], target: torch.Tensor, num_outs=3,
+              cur_ep=None, total_eps=20, frac=0.8, **kwargs):
+    ep_to_change = int(total_eps * frac)
+    if cur_ep <= ep_to_change:
+        targets = [target] * len(preds)
+        return targets
+    else:
+        targets = []
+        targets.append(target)
+        aux_targets = []
+        for i in range(num_outs):
+            pred = preds[0]
+            pred = pred.sigmoid()
+            pred = (pred - pred.min()) / (pred.max() - pred.min() + 1e-8)
+            aux_targets.append(pred)
+        targets.extend(aux_targets)
         return targets
