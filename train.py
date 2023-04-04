@@ -11,7 +11,7 @@ import numpy as np
 
 from mmseg.models.builder import build_segmentor
 
-from mcode import ActiveDataset, get_scores, LOGGER, set_logging
+from mcode import ActiveDataset, get_scores, LOGGER, set_logging, weighted_score
 from mcode.sam import SAM
 from mcode.config import *
 
@@ -23,6 +23,8 @@ def full_val(model, epoch):
     table = []
     headers = ['Dataset', 'IoU', 'Dice']
     ious, dices = AverageMeter(), AverageMeter()
+    all_dices = []
+    metric_weights = [0.1253, 0.0777, 0.4762, 0.0752, 0.2456]
 
     for dataset_name in dataset_names:
         data_path = f'{test_folder}/{dataset_name}'
@@ -57,14 +59,26 @@ def full_val(model, epoch):
         mean_iou, mean_dice, _, _ = get_scores(gts, prs)
         ious.update(mean_iou)
         dices.update(mean_dice)
+        all_dices.append(mean_dice)
         if use_wandb:
-            if use_wandb:
-                wandb.log({f'{dataset_name}_dice': mean_dice,
-                           'epoch': epoch})
-                wandb.log({f'{dataset_name}_iou': mean_iou,
-                           'epoch': epoch})
+            wandb.log({f'{dataset_name}_dice': mean_dice,
+                       'epoch': epoch})
+            wandb.log({f'{dataset_name}_iou': mean_iou,
+                       'epoch': epoch})
         table.append([dataset_name, mean_iou, mean_dice])
+    wdice = weighted_score(
+        scores=all_dices,
+        weights=metric_weights
+    )
     table.append(['Total', ious.avg, dices.avg])
+    table.append(['wDice', 0, wdice])
+    if use_wandb:
+        wandb.log({f'Avg_iou': ious.avg,
+                   'epoch': epoch})
+        wandb.log({f'Avg_dice': dices.avg,
+                   'epoch': epoch})
+        wandb.log({f'wDice': wdice,
+                  'epoch': epoch})
 
     print(tabulate(table, headers=headers, tablefmt="fancy_grid"))
     with open(f"{save_path}/exp.log", 'a') as f:
@@ -170,7 +184,7 @@ if __name__ == '__main__':
             # --- forward ---
             y_hats = model(x)
             # --- get targets ---
-            strategy_kwargs['cur_ep'] = ep # uncomment this if not strategy 2
+            strategy_kwargs['cur_ep'] = ep
             targets = label_assignment(y_hats, y, strategy, **strategy_kwargs)
             # --- loss ---
             losses = []
