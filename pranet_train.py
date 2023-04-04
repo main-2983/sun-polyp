@@ -195,7 +195,7 @@ if __name__ == '__main__':
                 # --- forward ---
                 y_hats = model(x)
                 # --- get targets ---
-                strategy_kwargs['cur_ep'] = ep # uncomment this if not strategy 2
+                strategy_kwargs['cur_ep'] = ep
                 targets = label_assignment(y_hats, y, strategy, **strategy_kwargs)
                 # --- loss function ---
                 losses = []
