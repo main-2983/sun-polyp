@@ -132,8 +132,8 @@ def label_assignment(preds: List[torch.Tensor], target: torch.Tensor=None,
 
 
 @torch.no_grad()
-def strategy_2(preds: List[torch.Tensor], target: torch.Tensor=None, num_outs=3,
-               cur_ep=None, total_eps=20, frac=0.8):
+def guided_DS(preds: List[torch.Tensor], target: torch.Tensor=None, num_outs=3,
+              cur_ep=None, total_eps=20, frac=0.8, **kwargs):
     ep_to_change = int(total_eps * frac)
     if cur_ep <= ep_to_change:
         targets = [target] * len(preds)
