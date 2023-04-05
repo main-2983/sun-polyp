@@ -12,7 +12,7 @@ import numpy as np
 from mmseg.models.builder import build_segmentor
 from mmseg.models.losses import StructureLoss
 
-from mcode import ActiveDataset, get_scores, LOGGER, weighted_score, set_logging
+from mcode import ActiveDataset, get_scores, LOGGER, weighted_score, set_logging, make_loss
 from mcode.utils import adjust_lr, clip_gradient
 from mcode.config import *
 from mcode.sam import SAM
@@ -117,9 +117,6 @@ if __name__ == '__main__':
     model.init_weights()
     model = model.to(device)
 
-    # loss
-    loss_fn = StructureLoss()
-
     # dataset
     train_dataset = ActiveDataset(
         train_images,
@@ -142,6 +139,9 @@ if __name__ == '__main__':
     # dataloader
     train_loader = DataLoader(train_dataset, batch_size=bs, num_workers=num_workers)
     total_step = len(train_loader)
+
+    # loss
+    loss = make_loss(loss_cfg)
 
     # optimizer
     if use_SAM:
@@ -169,7 +169,6 @@ if __name__ == '__main__':
     label_vis_hook.before_train(train_dataset)
 
     for ep in range(1, n_eps + 1):
-        # this fucking line literally do nothing ????????????????
         adjust_lr(optimizer, 1e-4, ep, 0.1, 50)
 
         dice_meter.reset()
@@ -197,15 +196,12 @@ if __name__ == '__main__':
                 # --- get targets ---
                 strategy_kwargs['cur_ep'] = ep
                 targets = label_assignment(y_hats, y, strategy, **strategy_kwargs)
-                # --- loss function ---
+                # --- loss ---
                 losses = []
-                if len(loss_weights) == 1:
-                    loss_weights = loss_weights * len(y_hats)
                 for i, (y_hat, y) in enumerate(zip(y_hats, targets)):
-                    loss = loss_fn(y_hat, y)
-                    loss = loss_weights[i] * loss
-                    losses.append(loss)
-                losses = sum(l for l in losses)
+                    for l in loss:
+                        losses.append(l(y_hat, y))
+                losses = sum(losses)
                 losses.backward()
                 # --- optimizer closure (for SAM) ---
                 def closure():
@@ -214,10 +210,9 @@ if __name__ == '__main__':
                     # --- 2nd loss calc ---
                     _losses = []
                     for i, (_y_hat, _y) in enumerate(zip(_y_hats, targets)):
-                        _loss = loss_fn(_y_hat, _y)
-                        _loss = loss_weights[i] * _loss
-                        _losses.append(_loss)
-                    _losses = sum(_l for _l in _losses)
+                        for _l in loss:
+                            _losses.append(_l(y_hat, y))
+                    _losses = sum(_losses)
                     _losses.backward()
                     return _losses
                 # --- backward ---
@@ -229,7 +224,7 @@ if __name__ == '__main__':
                 pred_mask = (y_hat_mask - y_hat_mask.min()) / (y_hat_mask.max() - y_hat_mask.min() + 1e-8)
                 pred_mask = pred_mask.round()
 
-                train_loss_meter.update(loss.item(), n)
+                train_loss_meter.update(losses.item(), n)
                 tp, fp, fn, tn = smp.metrics.get_stats(pred_mask.long(), targets[0].long(), mode="binary")
                 per_image_iou = smp.metrics.iou_score(tp, fp, fn, tn, reduction="micro-imagewise")
                 dataset_iou = smp.metrics.iou_score(tp, fp, fn, tn, reduction="micro")

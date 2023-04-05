@@ -2,6 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+from ..builder import LOSSES
+
 
 def structure_loss(pred, mask):
     weit = 1 + 5*torch.abs(F.avg_pool2d(mask, kernel_size=31, stride=1, padding=15) - mask)
@@ -15,6 +17,7 @@ def structure_loss(pred, mask):
     return (wbce + wiou).mean()
 
 
+@LOSSES.register_module()
 class StructureLoss(nn.Module):
     def __init__(self,
                  weight=1.0):

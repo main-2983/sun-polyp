@@ -63,19 +63,18 @@ use_SAM = False
 optimizer = torch.optim.AdamW
 init_lr = 1e-4
 grad_accumulate_rate = 1
-optimizer_kwargs = {
-    'lr': init_lr,
-    'betas': (0.9, 0.999),
-    'weight_decay': 0.01
-}
+optimizer_kwargs = dict(
+    lr=init_lr,
+    betas=(0.9, 0.999),
+    weight_decay=0.01
+)
 
 # loss config
 # ------------------------------------------------
-focal_loss = smp.losses.FocalLoss(smp.losses.BINARY_MODE)
-dice_loss = smp.losses.DiceLoss(smp.losses.BINARY_MODE)
-bce_loss = smp.losses.SoftBCEWithLogitsLoss()
-loss_fns = [bce_loss, dice_loss]
-loss_weights = [0.5, 0.5]
+loss_cfg = dict(
+    type='StructureLoss',
+    weight=1.0
+)
 
 # augmentation
 # ------------------------------------------------
@@ -100,16 +99,14 @@ val_transform = A.Compose([
 # deep supervision
 # ------------------------------------------------
 strategy = None # default to None
-strategy_kwargs = {
-
-}
-label_vis_kwargs = {
-    'type': None
-}
+strategy_kwargs = dict()
+label_vis_kwargs = dict(
+    type=None
+)
 
 # model config
 # ------------------------------------------------
-pretrained = "/mnt/sdd/nguyen.van.quan/BKAI-kaggle/pretrained/mit_b1_mmseg.pth"
+pretrained = None
 model_cfg = dict(
     type='SunSegmentor',
     backbone=dict(

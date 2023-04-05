@@ -11,7 +11,7 @@ import numpy as np
 
 from mmseg.models.builder import build_segmentor
 
-from mcode import ActiveDataset, get_scores, LOGGER, set_logging, weighted_score
+from mcode import ActiveDataset, get_scores, LOGGER, set_logging, weighted_score, make_loss
 from mcode.sam import SAM
 from mcode.config import *
 
@@ -138,6 +138,9 @@ if __name__ == '__main__':
     train_loader = DataLoader(train_dataset, batch_size=bs, num_workers=num_workers, shuffle=True)
     total_step = len(train_loader)
 
+    # loss
+    loss = make_loss(loss_cfg)
+
     # optimizer
     if use_SAM:
         LOGGER.warning("You're using SAM for training, training will be slower than usual")
@@ -180,7 +183,7 @@ if __name__ == '__main__':
             # --- data prepare ---
             n = sample["image"].shape[0]
             x = sample["image"].to(device)
-            y = sample["mask"].to(device).to(torch.int64)
+            y = sample["mask"].to(device)
             # --- forward ---
             y_hats = model(x)
             # --- get targets ---
@@ -189,10 +192,9 @@ if __name__ == '__main__':
             # --- loss ---
             losses = []
             for i, (y_hat, y) in enumerate(zip(y_hats, targets)):
-                loss = loss_weights[0] * loss_fns[0](y_hat.squeeze(1), y.squeeze(1).float()) + \
-                    loss_weights[1] * loss_fns[1](y_hat, y)
-                losses.append(loss)
-            losses = sum(l for l in losses)
+                for l in loss:
+                    losses.append(l(y_hat, y))
+            losses = sum(losses)
             losses.backward()
             # --- optimizer closure (for SAM) ---
             def closure():
@@ -201,10 +203,9 @@ if __name__ == '__main__':
                 # --- 2nd loss calc ---
                 _losses = []
                 for i, (_y_hat, _y) in enumerate(zip(_y_hats, targets)):
-                    _loss = loss_weights[0] * loss_fns[0](_y_hat.squeeze(1), _y.squeeze(1).float()) + \
-                            loss_weights[1] * loss_fns[1](_y_hat, _y)
-                    _losses.append(_loss)
-                _losses = sum(_l for _l in _losses)
+                    for _l in loss:
+                        _losses.append(_l(y_hat, y))
+                _losses = sum(_losses)
                 _losses.backward()
                 return _losses
 
@@ -214,7 +215,7 @@ if __name__ == '__main__':
             y_hat_mask = y_hats[0].sigmoid()
             pred_mask = (y_hat_mask > 0.5).float()
 
-            train_loss_meter.update(loss.item(), n)
+            train_loss_meter.update(losses.item(), n)
             tp, fp, fn, tn = smp.metrics.get_stats(pred_mask.long(), y.long(), mode="binary")
             per_image_iou = smp.metrics.iou_score(tp, fp, fn, tn, reduction="micro-imagewise")
             dataset_iou = smp.metrics.iou_score(tp, fp, fn, tn, reduction="micro")

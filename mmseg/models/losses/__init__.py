@@ -6,6 +6,7 @@ from .dice_loss import DiceLoss
 from .focal_loss import FocalLoss
 from .lovasz_loss import LovaszLoss
 from .structure_loss import StructureLoss
+from .smp_loss import *
 from .utils import reduce_loss, weight_reduce_loss, weighted_loss
 
 __all__ = [
