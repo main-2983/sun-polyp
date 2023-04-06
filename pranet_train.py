@@ -1,16 +1,15 @@
 import wandb
+import logging
+import numpy as np
 from tqdm import tqdm
 from tabulate import tabulate
-import logging
-import os
 
 import torch
 import torch.nn.functional as F
+import segmentation_models_pytorch as smp
 from torch.utils.data import DataLoader
-import numpy as np
 
 from mmseg.models.builder import build_segmentor
-from mmseg.models.losses import StructureLoss
 
 from mcode import ActiveDataset, get_scores, LOGGER, weighted_score, set_logging, make_loss
 from mcode.utils import adjust_lr, clip_gradient

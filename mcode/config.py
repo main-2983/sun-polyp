@@ -1,10 +1,10 @@
 import glob
 
-import torch
-import segmentation_models_pytorch as smp
+import cv2
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
-import cv2
+
+import torch
 
 from .utils import select_device
 from .metrics import AverageMeter
