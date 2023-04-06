@@ -28,7 +28,8 @@ from .setr_mla_head import SETRMLAHead
 from .setr_up_head import SETRUPHead
 from .stdc_head import STDCHead
 from .uper_head import UPerHead
-from .uper_LRC_head import UperLRCHead
+from .pranet_head import PraNetHead
+from .ssformer_head import SSFormerHead
 from .lapformer_head import LAPFormerHead
 from .lap_headv2 import *
 from .lap_headv2_ds import *
@@ -41,6 +42,6 @@ __all__ = [
     'PointHead', 'APCHead', 'DMHead', 'LRASPPHead', 'SETRUPHead',
     'SETRMLAHead', 'DPTHead', 'SETRMLAHead', 'SegmenterMaskTransformerHead',
     'SegformerHead', 'ISAHead', 'STDCHead', 'IterativeDecodeHead',
-    'KernelUpdateHead', 'KernelUpdator', 'UperLRCHead', 'LAPFormerHead',
-    'LAPHead_v2_1'
+    'KernelUpdateHead', 'KernelUpdator', 'LAPFormerHead', 'SSFormerHead',
+    'PraNetHead'
 ]

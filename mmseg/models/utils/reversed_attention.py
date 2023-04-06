@@ -2,62 +2,51 @@ import torch
 import torch.nn as nn
 from mmcv.cnn import ConvModule
 
-from .se_layer import SELayer
 
 class ReversedAttention(nn.Module):
-    def __init__(self, in_channels, out_channels, num_stacked=3):
+    def __init__(self,
+                 in_channels,
+                 channels,
+                 kernel_size,
+                 num_convs=2):
         super(ReversedAttention, self).__init__()
-        self.bottleneck = ConvModule(
-            in_channels=in_channels,
-            out_channels=out_channels,
-            kernel_size=1,
-            act_cfg=None
-        )
+        norm_cfg = dict(type='BN', requires_grad=True)
+        # Conv + BN
+        self.bottleneck = ConvModule(in_channels,
+                                     channels,
+                                     kernel_size=1,
+                                     norm_cfg=norm_cfg,
+                                     act_cfg=None)
         convs = []
-        for i in range(num_stacked):
+        # Conv + BN + ReLU
+        for i in range(num_convs):
             convs.append(
-                ConvModule(
-                    in_channels=out_channels,
-                    out_channels=out_channels,
-                    kernel_size=3,
-                    padding=1,
-                )
+                ConvModule(channels,
+                           channels,
+                           kernel_size=kernel_size,
+                           padding=kernel_size//2,
+                           norm_cfg=norm_cfg)
             )
-        convs.append(
-            ConvModule(
-                in_channels=out_channels,
-                out_channels=1,
-                kernel_size=3,
-                padding=1,
-                act_cfg=None
-            )
-        )
         self.convs = nn.Sequential(*convs)
 
     def forward(self, x, y):
-        b, c, h, w = x.shape
+        """
+        Forward function of Reversed Attention
+        Args:
+            y: prediction mask (B, 1, H, W)
+            x: feature maps
+        Returns:
+            x: will be forwarded to a prediction layer and added with y to output
+            final prediction mask
+            y_res: will be added with x after forwarded to a prediction layer
+        """
+        assert y.shape[1] == 1, "'y' must be a prediction mask"
+        _, c, h, w = x.shape
 
-        bottleneck = self.bottleneck(x)
-        rev_weight = -1 * torch.sigmoid(y) + 1
-        rev_weight = rev_weight.expand([-1, c, -1, -1])
-        out_feat = bottleneck * rev_weight
-        out_feat = self.convs(out_feat)
-
-        return y + out_feat
-
-class ReversedAttention_v2(nn.Module):
-    def __init__(self, channels):
-        super(ReversedAttention_v2, self).__init__()
-        self.channel_attn = SELayer(channels=channels)
-
-    def forward(self, x):
-        b, c, h, w = x.shape
-
-        feat = self.channel_attn(x)
-        max_feat, _ = torch.max(feat, dim=1, keepdim=True)
-        out_feat = -1 * torch.sigmoid(max_feat) + 1
-        out_feat = out_feat.expand([-1, c, -1, -1])
-
-        out = out_feat * x
-
-        return out
+        y_res = y
+        rev_y = -1 * torch.sigmoid(y_res) + 1
+        rev_y = rev_y.expand(-1, c, -1, -1)
+        x = rev_y * x
+        x = self.bottleneck(x)
+        x = self.convs(x)
+        return x, y_res
