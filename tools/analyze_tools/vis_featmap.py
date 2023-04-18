@@ -10,7 +10,7 @@ import torch
 
 from mmseg.models.builder import build_segmentor
 
-from mcode import select_device, UnNormalize
+from mcode import select_device, UnNormalize, ActiveDataset
 from torch_hooks import IOHook
 
 
@@ -76,13 +76,19 @@ if __name__ == '__main__':
         layer = eval(target_layer)
         hook = IOHook(layer)
 
+    dataset = ActiveDataset(
+        image_paths=[image_path],
+        gt_paths=[mask_path],
+        transform=transform
+    )
+    sample = dataset[0]
     image = cv2.imread(image_path)
     image = cv2.resize(image, (352, 352))[:, :, ::-1]
-    mask = cv2.imread(mask_path)
-    mask = cv2.resize(mask, (352, 352))[:, :, 0]
-    sample = transform(image=image, mask=mask)
+    # mask = cv2.imread(mask_path)
+    # mask = cv2.resize(mask, (352, 352))[:, :, 0]
+    # sample = transform(image=image, mask=mask)
     img, gt_mask = sample["image"], sample["mask"]
-    gt_mask = np.asarray(gt_mask, np.float32)
+    gt_mask = np.asarray(gt_mask, np.float32)[0, :, :]
     img = img[None].to(device)
 
     with torch.no_grad():

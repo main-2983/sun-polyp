@@ -13,14 +13,18 @@ from pytorch_grad_cam.utils.image import show_cam_on_image
 
 from mmseg.models.builder import build_segmentor
 
-from mcode import select_device, UnNormalize
+from mcode import select_device, UnNormalize, ActiveDataset
 
 # config
-ckpt_path = "ckpts/v2(2).pth"
-image_path = "Dataset/TestDataset/CVC-300/images/159.png"
-mask_path = "Dataset/TestDataset/CVC-300/masks/159.png"
+ckpt_path = "ckpts/exfuse-add-dropC.pth"
+image_path = "Dataset/TestDataset/ETIS-LaribPolypDB/images/71.png"
+mask_path = "Dataset/TestDataset/ETIS-LaribPolypDB/masks/71.png"
+target_layers = [
+    "model.decode_head.linear_prj[-1]"
+]
 print_model = False
-save_path = "runs/cam/V2(2)"
+# save_path = "runs/cam/V2(2)"
+save_path = None
 show = True
 method = GradCAM
 transform = A.Compose([
@@ -47,7 +51,7 @@ model_cfg = dict(
         drop_path_rate=0.1,
         pretrained=None),
     decode_head=dict(
-        type='LAPHead_v2_2',
+        type='LAPHead_v2_28',
         in_channels=[64, 128, 320, 512],
         in_index=[0, 1, 2, 3],
         channels=256,
@@ -57,9 +61,6 @@ model_cfg = dict(
         align_corners=False,
         loss_decode=dict(type='CrossEntropyLoss', use_sigmoid=True, loss_weight=1.0))
 )
-target_layers = [
-    "model.decode_head.ppm[3]"
-]
 
 
 def reshape_transform(tensor):
@@ -100,13 +101,19 @@ if __name__ == '__main__':
 
     _target_layers = [eval(target_layer) for target_layer in target_layers]
 
+    dataset = ActiveDataset(
+        image_paths=[image_path],
+        gt_paths=[mask_path],
+        transform=transform
+    )
+    sample = dataset[0]
     image = cv2.imread(image_path)
     image = cv2.resize(image, (352, 352))[:, :, ::-1]
-    mask = cv2.imread(mask_path)
-    mask = cv2.resize(mask, (352, 352))[:, :, 0]
-    sample = transform(image=image, mask=mask)
+    # mask = cv2.imread(mask_path)
+    # mask = cv2.resize(mask, (352, 352))[:, :, 0]
+    # sample = transform(image=image, mask=mask)
     img, gt_mask = sample["image"], sample["mask"]
-    gt_mask = np.asarray(gt_mask, np.float32)
+    gt_mask = np.asarray(gt_mask, np.float32)[0, :, :]
     img = img[None].to(device)
 
     with torch.no_grad():
