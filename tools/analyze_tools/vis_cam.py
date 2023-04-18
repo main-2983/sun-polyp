@@ -12,13 +12,15 @@ from pytorch_grad_cam.utils.image import show_cam_on_image
 
 from mmseg.models.builder import build_segmentor
 
-from mcode import select_device, UnNormalize
+from mcode import select_device, UnNormalize, ActiveDataset
 
 # config
 ckpt_path = "ckpts/LAPFormer-B1.pth"
 image_path = "Dataset/TestDataset/CVC-300/images/151.png"
 mask_path = "Dataset/TestDataset/CVC-300/masks/151.png"
 print_model = False
+save_path = None
+show = True
 method = GradCAM
 transform = A.Compose([
     A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
@@ -98,13 +100,19 @@ if __name__ == '__main__':
 
     target_layers = [eval(target_layer) for target_layer in target_layers]
 
+    dataset = ActiveDataset(
+        image_paths=[image_path],
+        gt_paths=[mask_path],
+        transform=transform
+    )
+    sample = dataset[0]
     image = cv2.imread(image_path)
     image = cv2.resize(image, (352, 352))[:, :, ::-1]
-    mask = cv2.imread(mask_path)
-    mask = cv2.resize(mask, (352, 352))[:, :, 0]
-    sample = transform(image=image, mask=mask)
+    # mask = cv2.imread(mask_path)
+    # mask = cv2.resize(mask, (352, 352))[:, :, 0]
+    # sample = transform(image=image, mask=mask)
     img, gt_mask = sample["image"], sample["mask"]
-    gt_mask = np.asarray(gt_mask, np.float32)
+    gt_mask = np.asarray(gt_mask, np.float32)[0, :, :]
     img = img[None].to(device)
 
     with torch.no_grad():
