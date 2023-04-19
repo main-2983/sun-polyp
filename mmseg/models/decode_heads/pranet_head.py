@@ -139,6 +139,50 @@ class PartialDecoder(nn.Module):
         return x
 
 
+class AuxHead(nn.Module):
+    def __init__(self,
+                 in_channels,
+                 channels,
+                 num_convs=0,
+                 norm_cfg=dict(
+                     type='BN',
+                     requires_grad=True
+                 ),
+                 act_cfg=dict(
+                     type='ReLU'
+                 )):
+        super(AuxHead, self).__init__()
+        aux_convs = []
+        for i in range(num_convs):
+            chn = in_channels if i == 0 else channels
+            aux_convs.append(
+                ConvModule(
+                    in_channels=chn,
+                    out_channels=channels,
+                    kernel_size=3,
+                    padding=1,
+                    norm_cfg=norm_cfg,
+                    act_cfg=act_cfg
+                )
+            )
+        if num_convs == 0:
+            self.aux_convs = nn.Identity()
+            self.aux_cls_seg = ConvModule(in_channels, 1, 1,
+                                          act_cfg=None,
+                                          norm_cfg=norm_cfg)
+        else:
+            self.aux_convs = nn.Sequential(*aux_convs)
+            self.aux_cls_seg = ConvModule(channels, 1, 1,
+                                          act_cfg=None,
+                                          norm_cfg=norm_cfg)
+
+    def forward(self, x):
+        aux_out = self.aux_convs(x)
+        aux_out = self.aux_cls_seg(aux_out)
+
+        return aux_out
+
+
 @HEADS.register_module()
 class PraNetHead(BaseDecodeHead):
     def __init__(self,
@@ -146,6 +190,8 @@ class PraNetHead(BaseDecodeHead):
                  revattn_channels=[256, 64, 64],
                  revattn_kernel=[5, 3, 3],
                  revattn_convs=[3, 2, 2],
+                 num_aux_convs=0,
+                 aux_channels=None,
                  **kwargs):
         super(PraNetHead, self).__init__(input_transform='multiple_select',
                                          **kwargs)
@@ -174,12 +220,11 @@ class PraNetHead(BaseDecodeHead):
         self.aux_pred = nn.ModuleList()
         for i in range(num_inputs):
             self.aux_pred.append(
-                ConvModule(revattn_channels[i],
-                           1,
-                           1,
-                           norm_cfg=dict(type='BN',
-                                         requires_grad=True),
-                           act_cfg=None)
+                AuxHead(
+                    in_channels=revattn_channels[i],
+                    channels=aux_channels,
+                    num_convs=num_aux_convs
+                )
             )
 
     def forward(self, inputs):
