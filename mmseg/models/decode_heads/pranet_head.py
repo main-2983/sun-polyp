@@ -217,15 +217,20 @@ class PraNetHead(BaseDecodeHead):
                                   kernel_size=revattn_kernel[i],
                                   num_convs=revattn_convs[i])
             )
-        self.aux_pred = nn.ModuleList()
-        for i in range(num_inputs):
-            self.aux_pred.append(
+        self.heads = nn.ModuleList()
+        # Aux heads
+        for i in range(num_inputs - 1):
+            self.heads.append(
                 AuxHead(
                     in_channels=revattn_channels[i],
                     channels=aux_channels,
                     num_convs=num_aux_convs
                 )
             )
+        main_head = ConvModule(revattn_channels[-1], 1, 1,
+                               act_cfg=None,
+                               norm_cfg=self.norm_cfg)
+        self.heads.append(main_head)
 
     def forward(self, inputs):
         inputs = self._transform_inputs(inputs)
@@ -245,7 +250,7 @@ class PraNetHead(BaseDecodeHead):
                        mode=self.interpolate_mode)
             x = inputs[len(inputs) - (i+1)]
             _x, y = self.reversed_attns[i](x, y)
-            _x = self.aux_pred[i](_x)
+            _x = self.heads[i](_x)
             out = _x + y
             outs.append(out) # (/32 -> /16 -> /8)
         # reverse order to match with SunSegmentor output requirements
