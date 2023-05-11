@@ -3,6 +3,7 @@ from typing import List
 import matplotlib.pyplot as plt
 
 import torch
+import torch.nn.functional as F
 
 
 class LabelVis:
@@ -77,7 +78,6 @@ class LabelVis:
                         fig.add_subplot(rows, cols, pos+1)
                         plt.imshow(target, cmap='gray')
                     plt.savefig(f"{self.save_path}/{string}.jpg")
-                    plt.show()
                     plt.close()
         else:
             pass
@@ -117,7 +117,6 @@ class LabelVis:
                         fig.add_subplot(rows, cols, pos + 1)
                         plt.imshow(target, cmap='gray')
                     plt.savefig(f"{self.save_path}/{string}.jpg")
-                    plt.show()
                     plt.close()
         else:
             pass
@@ -150,3 +149,16 @@ def guided_DS(preds: List[torch.Tensor], target: torch.Tensor, num_outs=3,
             aux_targets.append(pred)
         targets.extend(aux_targets)
         return targets
+
+
+@torch.no_grad()
+def cascade_target(preds: List[torch.Tensor], target: torch.Tensor, num_outs=3,
+                   mode='bilinear', **kwargs):
+    targets = [target] # for first output featmap (featmap with largest resolution)
+    for i in range(1, num_outs): # exclude the first featmap
+        pred = preds[i]
+        size = pred.shape[2:]
+        _target = F.interpolate(target, size=size, mode=mode)
+        targets.append(_target)
+
+    return targets
