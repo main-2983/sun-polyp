@@ -136,7 +136,7 @@ if __name__ == '__main__':
     LOGGER.info(f"Valid size: {len(val_dataset)}")
 
     # dataloader
-    train_loader = DataLoader(train_dataset, batch_size=bs, num_workers=num_workers)
+    train_loader = DataLoader(train_dataset, batch_size=bs, num_workers=num_workers, shuffle=True)
     total_step = len(train_loader)
 
     # loss
@@ -210,7 +210,7 @@ if __name__ == '__main__':
                     _losses = []
                     for i, (_y_hat, _y) in enumerate(zip(_y_hats, targets)):
                         for _l in loss:
-                            _losses.append(_l(y_hat, y))
+                            _losses.append(_l(_y_hat, _y))
                     _losses = sum(_losses)
                     _losses.backward()
                     return _losses
