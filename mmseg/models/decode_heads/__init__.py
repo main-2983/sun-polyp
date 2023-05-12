@@ -31,6 +31,7 @@ from .uper_head import UPerHead
 from .pranet_head import PraNetHead
 from .ssformer_head import SSFormerHead
 from .lapformer_head import LAPFormerHead
+from .cascade_segformer_head import CascadeSegformerHead
 
 __all__ = [
     'FCNHead', 'PSPHead', 'ASPPHead', 'PSAHead', 'NLHead', 'GCHead', 'CCHead',
