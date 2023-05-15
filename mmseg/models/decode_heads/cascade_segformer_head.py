@@ -29,7 +29,7 @@ class AuxHead(nn.Module):
                     in_channels=in_channels,
                     out_channels=channels,
                     kernel_size=kernel_size,
-                    stride=kernel_size//2,
+                    padding=kernel_size//2,
                     act_cfg=act_cfg,
                     norm_cfg=norm_cfg
                 )
@@ -90,6 +90,58 @@ class CascadeSegformerHead(SegformerHead):
         # Forward Main Head
         out = self.cls_seg(_outs[-1])
         outs.append(out)
+        # Format output
+        outs = outs[::-1]
+
+        return outs
+
+
+@HEADS.register_module()
+class CascadeSegformerHeadv2(SegformerHead):
+    def __init__(self,
+                 num_aux_convs=2,
+                 aux_kernel=3,
+                 **kwargs):
+        super(CascadeSegformerHeadv2, self).__init__(**kwargs)
+        self.fusion_conv = None # Remove fusion_conv
+        # Construct Aux Heads
+        self.aux_heads = nn.ModuleList()
+        for i in range(len(self.in_channels) - 1):
+            self.aux_heads.append(
+                AuxHead(in_channels=self.channels,
+                        channels=self.channels,
+                        num_classes=self.num_classes,
+                        num_convs=num_aux_convs,
+                        kernel_size=aux_kernel,
+                        norm_cfg=self.norm_cfg,
+                        act_cfg=self.act_cfg)
+            )
+
+    def forward(self, inputs):
+        inputs = self._transform_inputs(inputs) # 1/4, 1/8, 1/16, 1/32
+        outs = [] # 1/32, 1/16, 1/8, 1/4
+        for idx in range(len(inputs) - 1, -1, -1):
+            x = inputs[idx]
+            conv = self.convs[idx]
+            out = conv(x)
+            outs.append(out)
+
+        # Forward Aux Heads
+        for i in range(len(self.aux_heads)):
+            featmaps = outs[i] # 1/32 -> 1/16 -> 1/8
+            out = self.aux_heads[i](featmaps)
+            # re-assign outs
+            outs[i] = out
+            # combine this out with next scale out
+            temp = resize(out,
+                          size=outs[i + 1].shape[2:],
+                          mode=self.interpolate_mode,
+                          align_corners=self.align_corners)
+            outs[i + 1] = temp + outs[i + 1]
+
+        # Forward Main Head
+        out = self.cls_seg(outs[-1])
+        outs[-1] = out
         # Format output
         outs = outs[::-1]
 
