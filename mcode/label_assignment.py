@@ -153,12 +153,15 @@ def guided_DS(preds: List[torch.Tensor], target: torch.Tensor, num_outs=3,
 
 @torch.no_grad()
 def cascade_target(preds: List[torch.Tensor], target: torch.Tensor, num_outs=3,
-                   mode='bilinear', **kwargs):
-    targets = [target] # for first output featmap (featmap with largest resolution)
-    for i in range(1, num_outs): # exclude the first featmap
-        pred = preds[i]
-        size = pred.shape[2:]
-        _target = F.interpolate(target, size=size, mode=mode)
-        targets.append(_target)
-
+                   mode='bilinear', total_eps=20, cur_ep=None, frac=0.5, **kwargs):
+    ep_to_change = int(total_eps * frac)
+    if cur_ep <= ep_to_change:
+        targets = [target] # for first output featmap (featmap with largest resolution)
+        for i in range(1, num_outs): # exclude the first featmap
+            pred = preds[i]
+            size = pred.shape[2:]
+            _target = F.interpolate(target, size=size, mode=mode)
+            targets.append(_target)
+    else:
+        targets = [target] * len(preds)
     return targets
